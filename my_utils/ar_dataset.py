@@ -257,7 +257,6 @@ class ARDataset(Dataset):
         max_duration = 0.0
         max_audio_sr = None
         for split in SPLITS:
-            print(f"split: {split} starting")
             for sample in full_ds[split]:
                 # Max transcript length
                 transcript = self.krn_parser.convert_text(text=sample["kern"])

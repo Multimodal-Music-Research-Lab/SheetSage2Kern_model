@@ -2,12 +2,13 @@ import os
 import shutil
 
 from music21 import converter as converterm21
-from pyMV2H.utils.mv2h import MV2H
+from pyMV2H.converter.midi_converter import MidiConverter as Converter
 from pyMV2H.metrics.mv2h import mv2h
 from pyMV2H.utils.music import Music
-from pyMV2H.converter.midi_converter import MidiConverter as Converter
+from pyMV2H.utils.mv2h import MV2H
 
-from .encoding_convertions import VOICE_CHANGE_TOKEN, STEP_CHANGE_TOKEN
+VOICE_CHANGE_TOKEN = ""  # TODO update this
+STEP_CHANGE_TOKEN = ""
 
 
 def compute_metrics(y_true, y_pred):
