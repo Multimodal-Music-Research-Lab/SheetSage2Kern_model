@@ -1,0 +1,10 @@
+SOS_TOKEN = "<SOS>"  # Start-of-sequence token
+EOS_TOKEN = "<EOS>"  # End-of-sequence token
+SPLITS = ["train", "validation", "test"]
+LOCAL_DATASET_PATH = "/home/eoin/hookKern_dataset_precomputed_muq"
+# LOCAL_DATASET_PATH = "/home/eoin/hookKern_dataset"
+DATASET_NAME = "HookKern"
+PREPROCESSED_MUQ_ENCODER = "preprocessed_muq"
+CNN_ENCODER = "cnn"
+MUQ_ENCODER = "muq"
+VALID_ENCODERS = [PREPROCESSED_MUQ_ENCODER, CNN_ENCODER, MUQ_ENCODER]

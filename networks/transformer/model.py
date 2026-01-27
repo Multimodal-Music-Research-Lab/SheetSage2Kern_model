@@ -7,42 +7,18 @@ from lightning.pytorch import LightningModule
 from torch.nn import CrossEntropyLoss
 from torchinfo import summary
 
-from my_utils.ar_dataset import EOS_TOKEN, SOS_TOKEN
+from my_utils.consts import (
+    CNN_ENCODER,
+    EOS_TOKEN,
+    MUQ_ENCODER,
+    PREPROCESSED_MUQ_ENCODER,
+    SOS_TOKEN,
+)
 from my_utils.data_preprocessing import IMG_HEIGHT, NUM_CHANNELS
 from my_utils.metrics import compute_metrics
 from networks.transformer.decoder import Decoder
-from networks.transformer.encoder import HEIGHT_REDUCTION, WIDTH_REDUCTION, Encoder
-
-
-class PositionalEncoding2D(nn.Module):
-    def __init__(self, num_channels, max_height, max_width, dropout_p: float = 0.1):
-        super(PositionalEncoding2D, self).__init__()
-        self.dropout = nn.Dropout(p=dropout_p)
-
-        pos_h = torch.arange(max_height).unsqueeze(1)
-        pos_w = torch.arange(max_width).unsqueeze(1)
-        den = torch.pow(10000, torch.arange(0, num_channels // 2, 2) / num_channels)
-
-        pe = torch.zeros(1, max_height, max_width, num_channels)
-        pe[0, :, :, 0 : num_channels // 2 : 2] = (
-            torch.sin(pos_w / den).unsqueeze(0).repeat(max_height, 1, 1)
-        )
-        pe[0, :, :, 1 : num_channels // 2 : 2] = (
-            torch.cos(pos_w / den).unsqueeze(0).repeat(max_height, 1, 1)
-        )
-        pe[0, :, :, num_channels // 2 :: 2] = (
-            torch.sin(pos_h / den).unsqueeze(1).repeat(1, max_width, 1)
-        )
-        pe[0, :, :, (num_channels // 2) + 1 :: 2] = (
-            torch.cos(pos_h / den).unsqueeze(1).repeat(1, max_width, 1)
-        )
-        pe = pe.permute(0, 3, 1, 2).contiguous()
-        self.register_buffer("pe", pe)
-
-    def forward(self, x):
-        # x.shape = [batch_size, num_channels, h, w]
-        x = x + self.pe[:, :, : x.size(2), : x.size(3)]
-        return self.dropout(x)
+from networks.transformer.encoder_modules import CnnEncoder
+from networks.transformer.muq_encoder import MuqEncoder, MuqEncoderPreprocessed
 
 
 class A2STransformer(LightningModule):
@@ -52,9 +28,11 @@ class A2STransformer(LightningModule):
         max_audio_len,
         w2i,
         i2w,
+        max_encoder_output_length,
         ytest_i2w=None,
         attn_window=-1,
         teacher_forcing_prob=0.5,
+        encoder=CNN_ENCODER,
     ):
         super(A2STransformer, self).__init__()
         # Save hyperparameters
@@ -68,18 +46,34 @@ class A2STransformer(LightningModule):
         self.max_audio_len = max_audio_len
         self.max_seq_len = max_seq_len
         self.teacher_forcing_prob = teacher_forcing_prob
-        self.encoder = Encoder(in_channels=NUM_CHANNELS)
-        self.pos_2d = PositionalEncoding2D(
-            num_channels=256,
-            max_height=math.ceil(IMG_HEIGHT / HEIGHT_REDUCTION),
-            max_width=math.ceil(self.max_audio_len / WIDTH_REDUCTION),
-        )
+        self.encoder_name = encoder
+        self.max_flattened_encoder_output_length = max_encoder_output_length
+
+        if encoder == CNN_ENCODER:
+            self.encoder = CnnEncoder(
+                max_encoder_output_length=max_encoder_output_length,
+                max_audio_len=max_audio_len,
+            )
+        elif encoder == MUQ_ENCODER:
+            self.encoder = MuqEncoder(
+                max_encoder_output_length=max_encoder_output_length,
+                max_audio_len=max_audio_len,
+            )
+        elif encoder == PREPROCESSED_MUQ_ENCODER:
+            self.encoder = MuqEncoderPreprocessed(
+                max_encoder_output_length=max_encoder_output_length,
+                max_audio_len=max_audio_len,
+            )
+
+        embedding_dim = self.encoder.get_output_dim()
         self.decoder = Decoder(
             output_size=len(self.w2i),
             max_seq_len=self.max_seq_len,
             num_embeddings=len(self.w2i),
             padding_idx=self.padding_idx,
             attn_window=attn_window,
+            embedding_dim=embedding_dim,
+            ff_dim=embedding_dim,
         )
         self.summary()
         # Loss
@@ -90,16 +84,18 @@ class A2STransformer(LightningModule):
 
     def summary(self):
         print("Encoder")
-        summary(
-            self.encoder, input_size=[1, NUM_CHANNELS, IMG_HEIGHT, self.max_audio_len]
-        )
+        if self.encoder_name == CNN_ENCODER:
+            summary(
+                self.encoder,
+                input_size=[1, NUM_CHANNELS, IMG_HEIGHT, self.max_audio_len],
+            )
+
         print("Decoder")
         tgt_size = [1, self.max_seq_len]
         memory_size = [
             1,
-            math.ceil(IMG_HEIGHT / HEIGHT_REDUCTION)
-            * math.ceil(self.max_audio_len / WIDTH_REDUCTION),
-            256,
+            self.max_flattened_encoder_output_length,
+            self.encoder.get_output_dim(),
         ]
         memory_len_size = [1]
         summary(
@@ -116,14 +112,11 @@ class A2STransformer(LightningModule):
         )
 
     def forward(self, x, xl, y_in):
-        # Encoder
         x = self.encoder(x=x)
-        # Prepare for decoder
-        # 2D PE + flatten + permute
-        x = self.pos_2d(x)
-        x = x.flatten(2).permute(0, 2, 1).contiguous()
+
         # Decoder
         y_out_hat = self.decoder(tgt=y_in, memory=x, memory_len=xl)
+
         return y_out_hat
 
     def apply_teacher_forcing(self, y):
@@ -151,6 +144,7 @@ class A2STransformer(LightningModule):
         yhat = self.forward(x=x, xl=xl, y_in=y_in)
         loss = self.compute_loss(yhat, y_out)
         self.log("train_loss", loss, prog_bar=True, logger=True, on_epoch=True)
+
         return loss
 
     @torch.no_grad()

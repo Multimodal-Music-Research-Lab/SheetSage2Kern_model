@@ -6,21 +6,27 @@ import torch
 from datasets import load_from_disk
 from lightning.pytorch import LightningDataModule
 from torch.utils.data import DataLoader, Dataset
+from tqdm import tqdm
 
+from my_utils.consts import (
+    CNN_ENCODER,
+    DATASET_NAME,
+    EOS_TOKEN,
+    LOCAL_DATASET_PATH,
+    MUQ_ENCODER,
+    PREPROCESSED_MUQ_ENCODER,
+    SOS_TOKEN,
+    SPLITS,
+)
 from my_utils.data_preprocessing import (
+    IMG_HEIGHT,
     ar_batch_preparation,
     preprocess_audio,
     set_pad_index,
 )
 from my_utils.tokeniser import GtParser
 from networks.transformer.encoder import HEIGHT_REDUCTION, WIDTH_REDUCTION
-
-SOS_TOKEN = "<SOS>"  # Start-of-sequence token
-EOS_TOKEN = "<EOS>"  # End-of-sequence token
-SPLITS = ["train", "validation", "test"]
-
-LOCAL_DATASET_PATH = "/home/eoin/hooktheory_dataset"
-DATASET_NAME = "HookKern"
+from networks.transformer.muq_encoder import MUQ_DIMENSION_REDUCTION
 
 
 class ARDataModule(LightningDataModule):
@@ -30,6 +36,7 @@ class ARDataModule(LightningDataModule):
         use_voice_change_token: bool = False,
         batch_size: int = 16,
         num_workers: int = 20,
+        encoder_name=CNN_ENCODER,
     ):
         super(ARDataModule, self).__init__()
         self.ds_name = ds_name
@@ -43,6 +50,8 @@ class ARDataModule(LightningDataModule):
         self.val_ds = None
         self.test_ds = None
 
+        self.encoder_name = encoder_name
+
     def setup(self, stage: str):
         if stage == "fit":
             if not self.train_ds:
@@ -50,12 +59,14 @@ class ARDataModule(LightningDataModule):
                     ds_name=self.ds_name,
                     partition_type="train",
                     use_voice_change_token=self.use_voice_change_token,
+                    encoder_name=self.encoder_name,
                 )
             if not self.val_ds:
                 self.val_ds = ARDataset(
                     ds_name=self.ds_name,
                     partition_type="validation",
                     use_voice_change_token=self.use_voice_change_token,
+                    encoder_name=self.encoder_name,
                 )
 
         if stage == "test" or stage == "predict":
@@ -64,6 +75,7 @@ class ARDataModule(LightningDataModule):
                     ds_name=self.ds_name,
                     partition_type="test",
                     use_voice_change_token=self.use_voice_change_token,
+                    encoder_name=self.encoder_name,
                 )
 
     def train_dataloader(self):
@@ -114,6 +126,9 @@ class ARDataModule(LightningDataModule):
         except AttributeError:
             return self.test_ds.max_audio_len
 
+    def get_max_encoder_output_len(self):
+        return self.train_ds.max_encoder_output_len  # TODO
+
 
 ####################################################################################################
 
@@ -124,10 +139,12 @@ class ARDataset(Dataset):
         ds_name: str,
         partition_type: str,
         use_voice_change_token: bool = False,
+        encoder_name=CNN_ENCODER,
     ):
         self.ds_name = ds_name.lower()
         self.partition_type = partition_type
         self.use_voice_change_token = use_voice_change_token
+        self.encoder_name = encoder_name
         self.init(vocab_name="ar_w2i")
         self.max_seq_len += 1  # Add 1 for EOS_TOKEN
 
@@ -141,7 +158,14 @@ class ARDataset(Dataset):
         )
 
         # Get audios and transcripts files
-        self.ds = load_from_disk(LOCAL_DATASET_PATH)[self.partition_type]
+        if self.encoder_name == PREPROCESSED_MUQ_ENCODER:
+            self.ds = load_from_disk(LOCAL_DATASET_PATH)[self.partition_type]
+        else:
+            self.ds = load_from_disk(LOCAL_DATASET_PATH)[self.partition_type].filter(
+                lambda example: example["audio"]["sampling_rate"] * 1
+                <= len(example["audio"]["array"])
+                <= example["audio"]["sampling_rate"] * 60
+            )
 
         # Check and retrieve vocabulary
         vocab_folder = os.path.join("Quartets", "vocabs")
@@ -155,22 +179,31 @@ class ARDataset(Dataset):
         set_pad_index(self.w2i["<PAD>"])
 
         # Check and retrive max lengths
-        # Set max_seq_len, max_audio_len and frame_multiplier_factor
+        # Set max_seq_len, max_audio_len
         max_lens_folder = os.path.join("Quartets", "max_lens")
         os.makedirs(max_lens_folder, exist_ok=True)
+
+        os.makedirs(os.path.join(max_lens_folder, self.encoder_name), exist_ok=True)
         max_lens_name = vocab_name
-        self.max_lens_path = os.path.join(max_lens_folder, max_lens_name)
+
+        self.max_lens_path = os.path.join(
+            max_lens_folder, self.encoder_name, max_lens_name
+        )
         max_lens = self.check_and_retrieve_max_lens()
         self.max_seq_len = max_lens["max_seq_len"]
         self.max_audio_len = max_lens["max_audio_len"]
-        self.frame_multiplier_factor = max_lens["max_frame_multiplier_factor"]
+        self.max_encoder_output_len = max_lens["max_encoder_output_len"]
 
     def __getitem__(self, idx):
-        x = preprocess_audio(
-            raw_audio=self.ds[idx]["audio"]["array"],
-            sr=self.ds[idx]["audio"]["sampling_rate"],
-            dtype=torch.float32,
-        )
+        if self.encoder_name == PREPROCESSED_MUQ_ENCODER:
+            x = torch.as_tensor(self.ds[idx]["muq_features"])
+        else:
+            x = preprocess_audio(
+                raw_audio=self.ds[idx]["audio"]["array"],
+                sr=self.ds[idx]["audio"]["sampling_rate"],
+                dtype=torch.float32,
+                encoder=self.encoder_name,
+            )
         y = self.preprocess_transcript(text=self.ds[idx]["kern"])
         if self.partition_type == "train":
             return x, self.get_number_of_frames(x), y
@@ -206,11 +239,15 @@ class ARDataset(Dataset):
         return w2i, i2w
 
     def get_number_of_frames(self, audio):
-        # audio is the output of preprocess_audio
-        # audio.shape = [1, freq_bins, time_frames]
-        return math.ceil(audio.shape[1] / HEIGHT_REDUCTION) * math.ceil(
-            audio.shape[2] / WIDTH_REDUCTION
-        )
+        if self.encoder_name == CNN_ENCODER:
+            return math.ceil(audio.shape[1] / HEIGHT_REDUCTION) * math.ceil(
+                audio.shape[2] / WIDTH_REDUCTION
+            )
+        elif self.encoder_name == PREPROCESSED_MUQ_ENCODER:
+            return audio.shape[0]
+        elif self.encoder_name == MUQ_ENCODER:
+            # Shape is [B,raw_audio_length]
+            return math.floor(audio.shape[1] / MUQ_DIMENSION_REDUCTION)
 
     def __len__(self):
         return len(self.ds)
@@ -247,39 +284,59 @@ class ARDataset(Dataset):
         # Set the maximum lengths for the whole QUARTETS collection:
         # 1) Get the maximum transcript length
         # 2) Get the maximum audio length
-        # 3) Get the frame multiplier factor so that
-        # the frames input to the RNN are equal to the
-        # length of the transcript, ensuring the CTC condition
+
         max_seq_len = 0
 
         full_ds = load_from_disk(LOCAL_DATASET_PATH)
         max_audio_raw = None
+        max_audio_len = 0
         max_duration = 0.0
         max_audio_sr = None
+        max_preprocessed_muq = 0
         for split in SPLITS:
-            for sample in full_ds[split]:
+            print(f"Processing split: {split}")
+            for sample in tqdm(full_ds[split], desc=f"{split}"):
+                if self.encoder_name != PREPROCESSED_MUQ_ENCODER:
+                    sr = sample["audio"]["sampling_rate"]
+                    raw_audio = sample["audio"]["array"]
+                    if not (sr <= len(raw_audio) <= sr * 60):
+                        continue
+
+                    dur = raw_audio.shape[0] / sr
+
+                    if dur > max_duration:
+                        max_duration = dur
+                        max_audio_raw = raw_audio
+                        max_audio_sr = sr
+                else:
+                    max_preprocessed_muq = max(
+                        max_preprocessed_muq,
+                        # torch.as_tensor(sample["muq_features"]).shape[0],
+                        len(sample["muq_features"]),
+                    )
                 # Max transcript length
                 transcript = self.krn_parser.convert_text(text=sample["kern"])
                 max_seq_len = max(max_seq_len, len(transcript))
 
-                sr = sample["audio"]["sampling_rate"]
-                raw_audio = sample["audio"]["array"]
+        if self.encoder_name != PREPROCESSED_MUQ_ENCODER:
+            audio = preprocess_audio(
+                raw_audio=max_audio_raw,
+                sr=max_audio_sr,
+                dtype=torch.float32,
+                encoder=self.encoder_name,
+            )
+            max_audio_len = audio.shape[-1]
 
-                dur = raw_audio.shape[0] / sr
-
-                if dur > max_duration:
-                    max_duration = dur
-                    max_audio_raw = raw_audio
-                    max_audio_sr = sr
-
-        audio = preprocess_audio(
-            raw_audio=max_audio_raw,
-            sr=max_audio_sr,
-            dtype=torch.float32,
-        )
-        max_audio_len = audio.shape[2]
+        if self.encoder_name == PREPROCESSED_MUQ_ENCODER:
+            max_encoder_output_len = max_preprocessed_muq
+        elif self.encoder_name == MUQ_ENCODER:
+            max_encoder_output_len = math.floor(max_audio_len / MUQ_DIMENSION_REDUCTION)
+        else:
+            max_encoder_output_len = math.ceil(
+                IMG_HEIGHT / HEIGHT_REDUCTION
+            ) * math.ceil(max_audio_len / WIDTH_REDUCTION)
         return {
             "max_seq_len": max_seq_len,
             "max_audio_len": max_audio_len,
-            "max_frame_multiplier_factor": 1,
+            "max_encoder_output_len": max_encoder_output_len,
         }

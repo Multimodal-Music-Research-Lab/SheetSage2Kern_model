@@ -4,6 +4,8 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
+from my_utils.consts import CNN_ENCODER, MUQ_ENCODER
+
 MEMORY = joblib.memory.Memory("./joblib_cache", mmap_mode="r", verbose=0)
 NUM_CHANNELS = 1
 IMG_HEIGHT = NUM_FREQ_BINS = 195
@@ -34,10 +36,16 @@ def get_spectrogram_from_raw_audio(raw_audio: np.ndarray, sr: float) -> np.ndarr
 
 @MEMORY.cache
 def preprocess_audio(
-    raw_audio: np.ndarray, sr: float, dtype=torch.float32
+    raw_audio: np.ndarray, sr: float, dtype=torch.float32, encoder=CNN_ENCODER
 ) -> torch.Tensor:
     # Get spectrogram (already normalized)
-    x = get_spectrogram_from_raw_audio(raw_audio, sr)
+    if encoder == CNN_ENCODER:
+        x = get_spectrogram_from_raw_audio(raw_audio, sr)
+    elif encoder == MUQ_ENCODER:
+        x = raw_audio
+        x = librosa.resample(raw_audio, orig_sr=sr, target_sr=24_000)
+    else:
+        raise ValueError()
     # Convert to PyTorch tensor
     x = np.expand_dims(x, 0)
     x = torch.from_numpy(x)  # [1, freq_bins, time_frames]
@@ -49,8 +57,8 @@ def preprocess_audio(
 
 
 def pad_batch_audios(x, dtype=torch.float32):
-    max_width = max(x, key=lambda sample: sample.shape[2]).shape[2]
-    x = torch.stack([F.pad(i, pad=(0, max_width - i.shape[2])) for i in x], dim=0)
+    max_width = max(x, key=lambda sample: sample.shape[-1]).shape[-1]
+    x = torch.stack([F.pad(i, pad=(0, max_width - i.shape[-1])) for i in x], dim=0)
     x = x.type(dtype=dtype)
     return x
 
