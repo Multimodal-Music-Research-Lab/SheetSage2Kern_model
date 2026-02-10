@@ -33,6 +33,8 @@ class A2STransformer(LightningModule):
         attn_window=-1,
         teacher_forcing_prob=0.5,
         encoder=CNN_ENCODER,
+        lr=1e-4,
+        weight_decay=0.0,
     ):
         super(A2STransformer, self).__init__()
         # Save hyperparameters
@@ -43,6 +45,8 @@ class A2STransformer(LightningModule):
         self.ytest_i2w = ytest_i2w if ytest_i2w is not None else i2w
         self.padding_idx = w2i["<PAD>"]
         # Model
+        self.lr = lr
+        self.weight_decay = weight_decay
         self.max_audio_len = max_audio_len
         self.max_seq_len = max_seq_len
         self.teacher_forcing_prob = teacher_forcing_prob
@@ -105,10 +109,16 @@ class A2STransformer(LightningModule):
         )
 
     def configure_optimizers(self):
-        return torch.optim.Adam(
+        # return torch.optim.Adam(
+        #     list(self.encoder.parameters()) + list(self.decoder.parameters()),
+        #     lr=1e-4,
+        #     amsgrad=False,
+        # )
+        return torch.optim.AdamW(
             list(self.encoder.parameters()) + list(self.decoder.parameters()),
-            lr=1e-4,
+            lr=self.lr,
             amsgrad=False,
+            weight_decay=self.weight_decay,
         )
 
     def forward(self, x, xl, y_in):
@@ -150,7 +160,6 @@ class A2STransformer(LightningModule):
     @torch.no_grad()
     def validation_step(self, batch, batch_idx):
         x, xl, y_in, y_out = batch
-        y_in = self.apply_teacher_forcing(y_in)
         yhat = self.forward(x=x, xl=xl, y_in=y_in)
         loss = self.compute_loss(yhat, y_out)
         self.log("val_loss", loss, prog_bar=True, logger=True, on_epoch=True)

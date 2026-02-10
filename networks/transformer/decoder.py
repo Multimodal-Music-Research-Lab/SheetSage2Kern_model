@@ -62,6 +62,7 @@ class Decoder(nn.Module):
                 dim_feedforward=ff_dim,
                 dropout=dropout_p,
                 batch_first=True,
+                norm_first=True,
             ),
             num_layers=num_transformer_layers,
         )

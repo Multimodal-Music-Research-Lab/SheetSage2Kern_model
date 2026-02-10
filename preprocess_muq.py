@@ -1,13 +1,13 @@
 import librosa
 import numpy as np
 import torch
-from datasets import load_from_disk
+from datasets import load_dataset, load_from_disk
+from muq import MuQ
 
-from networks.transformer.muq_encoder import MuqEncoder
-
-ORIGINAL_DATASET_PATH = "/home/eoin/hookKern_dataset"
-OUTPUT_DATASET_PATH = "/home/eoin/hookKern_dataset_precomputed_muq"
-DEVICE = "cuda:2"
+ORIGINAL_DATASET_PATH = "/home/eoin/sheetsage_dataset_trimmed"
+OUTPUT_DATASET_PATH = "/home/eoin/sheetsage_precomputed_muq"
+OUTPUT_DATASET_PATH = "/home/eoin/quartets_precomputed_muq"
+DEVICE = "cuda:3"
 
 
 def preprocess_audio(
@@ -23,15 +23,16 @@ def preprocess_audio(
 
 def main():
     print("Loading Encoder...")
-    encoder = MuqEncoder(device=DEVICE)
 
-    ds = load_from_disk(ORIGINAL_DATASET_PATH)
+    # ds = load_from_disk(ORIGINAL_DATASET_PATH)
+    ds = load_dataset(f"PRAIG/Quartets-quartets")
 
-    ds = ds.filter(
-        lambda example: example["audio"]["sampling_rate"] * 1
-        <= len(example["audio"]["array"])
-        <= example["audio"]["sampling_rate"] * 60
-    )
+    muq = MuQ.from_pretrained("OpenMuQ/MuQ-large-msd-iter")
+    muq = muq.eval()
+    muq = muq.to(DEVICE)
+
+    for param in muq.parameters():
+        param.requires_grad = False
 
     def extract_features(batch):
         audio_tensor = preprocess_audio(
@@ -40,12 +41,13 @@ def main():
 
         with torch.no_grad():
             with torch.autocast(device_type="cuda", enabled=False):
-                features = encoder(audio_tensor)
+                features = muq(
+                    audio_tensor, output_hidden_states=False
+                ).last_hidden_state
 
         features = features.cpu()
         features = features.squeeze()
-
-        return {"muq_features": features.numpy()}
+        return {"muq_features": features.numpy(), "muq_length": features.shape[0]}
 
     print("Mapping dataset to features...")
     feature_dataset = ds.map(

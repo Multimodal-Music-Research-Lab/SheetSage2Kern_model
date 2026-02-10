@@ -56,10 +56,18 @@ def preprocess_audio(
 ################################# CTC PREPROCESSING:
 
 
-def pad_batch_audios(x, dtype=torch.float32):
-    max_width = max(x, key=lambda sample: sample.shape[-1]).shape[-1]
-    x = torch.stack([F.pad(i, pad=(0, max_width - i.shape[-1])) for i in x], dim=0)
-    x = x.type(dtype=dtype)
+# def pad_batch_audios(x, dtype=torch.float32):
+#     max_width = max(x, key=lambda sample: sample.shape[-1]).shape[-1]
+#     x = torch.stack([F.pad(i, pad=(0, max_width - i.shape[-1])) for i in x], dim=0)
+#     x = x.type(dtype=dtype)
+#     return x
+def pad_batch_audios(
+    x, dtype=torch.float32
+):  # TODO this will only work for precomputed muq
+    max_time = max(sample.shape[0] for sample in x)
+
+    x = torch.stack([F.pad(i, pad=(0, 0, 0, max_time - i.shape[0])) for i in x], dim=0)
+    x = x.to(dtype=dtype)
     return x
 
 

@@ -1,4 +1,5 @@
 import gc
+from pathlib import Path
 
 import fire
 import torch
@@ -7,7 +8,10 @@ from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint
 from lightning.pytorch.loggers.wandb import WandbLogger
 
 from my_utils.ar_dataset import ARDataModule
-from my_utils.consts import CNN_ENCODER, DATASET_NAME, VALID_ENCODERS
+from my_utils.consts import (
+    CNN_ENCODER,
+    VALID_ENCODERS,
+)
 from my_utils.seed import seed_everything
 from networks.transformer.model import A2STransformer
 
@@ -16,6 +20,7 @@ PROJECT_NAME = "HookKernModel"
 
 
 def train(
+    ds_location: str,
     model_type: str = "transformer",
     attn_window: int = -1,
     use_voice_change_token: bool = False,
@@ -28,6 +33,7 @@ def train(
     gc.collect()
     torch.cuda.empty_cache()
 
+    dataset_name = Path(ds_location).stem
     # Experiment info
     print("TRAIN EXPERIMENT")
     print(f"\tAttention window: {attn_window} (Used if model type is transformer)")
@@ -42,6 +48,8 @@ def train(
 
     # Data module
     datamodule = ARDataModule(
+        ds_name=dataset_name,
+        ds_location=ds_location,
         use_voice_change_token=use_voice_change_token,
         batch_size=batch_size,
         encoder_name=encoder,
@@ -59,15 +67,18 @@ def train(
         attn_window=attn_window,
         teacher_forcing_prob=0.2,
         encoder=encoder,
+        lr=1e-5,
+        weight_decay=1e-3,
     )
 
     # Train, validate and test
+
     callbacks = [
         ModelCheckpoint(
             dirpath=f"weights/{model_type}/{encoder}"
             if not use_voice_change_token
             else f"weights/{model_type}-VCT",
-            filename=DATASET_NAME,
+            filename=dataset_name,
             monitor="val_loss",
             # monitor="val_sym-er",
             verbose=True,
@@ -95,11 +106,11 @@ def train(
     trainer = Trainer(
         logger=WandbLogger(
             project=PROJECT_NAME + "_test2",
-            group=f"{model_type}"
+            group=f"{model_type} with adamW and prenorm"
             if not use_voice_change_token
             else f"{model_type}-VCT",
             # name=f"Train-{ds_name}_Test-{ds_name}",
-            name=f"Hooktheory dataset test run with {encoder}",
+            name=f"Train-{encoder}-{dataset_name}",
             log_model=False,
         ),
         callbacks=callbacks,
