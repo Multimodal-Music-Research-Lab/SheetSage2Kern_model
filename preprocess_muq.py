@@ -1,13 +1,13 @@
+import argparse
+from pathlib import Path
+
 import librosa
 import numpy as np
 import torch
 from datasets import load_dataset, load_from_disk
 from muq import MuQ
 
-ORIGINAL_DATASET_PATH = "/home/eoin/sheetsage_dataset_trimmed"
-OUTPUT_DATASET_PATH = "/home/eoin/sheetsage_precomputed_muq"
-OUTPUT_DATASET_PATH = "/home/eoin/quartets_precomputed_muq"
-DEVICE = "cuda:3"
+DEVICE = "cuda:0"
 
 
 def preprocess_audio(
@@ -21,11 +21,44 @@ def preprocess_audio(
     return x
 
 
+def parse_args():
+    parser = argparse.ArgumentParser(
+        description="Precompute MuQ features for a dataset."
+    )
+    parser.add_argument(
+        "--input-dataset",
+        required=True,
+        help="Local dataset path (for --from-disk) or HF dataset name (for --no-from-disk).",
+    )
+    parser.add_argument(
+        "--from-disk",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Load dataset with load_from_disk (default: true). Use --no-from-disk for load_dataset.",
+    )
+    return parser.parse_args()
+
+
+def output_path_for_input(input_dataset: str, from_disk: bool) -> Path:
+    input_path = Path(input_dataset)
+    dataset_name = input_path.name if input_path.name else input_path.parent.name
+    output_name = f"{dataset_name}_precomputed_muq"
+
+    if from_disk:
+        return input_path.parent / output_name
+    return Path(output_name)
+
+
 def main():
+    args = parse_args()
     print("Loading Encoder...")
 
-    # ds = load_from_disk(ORIGINAL_DATASET_PATH)
-    ds = load_dataset(f"PRAIG/Quartets-quartets")
+    if args.from_disk:
+        ds = load_from_disk(args.input_dataset)
+    else:
+        ds = load_dataset(args.input_dataset)
+
+    output_dataset_path = output_path_for_input(args.input_dataset, args.from_disk)
 
     muq = MuQ.from_pretrained("OpenMuQ/MuQ-large-msd-iter")
     muq = muq.eval()
@@ -41,13 +74,10 @@ def main():
 
         with torch.no_grad():
             with torch.autocast(device_type="cuda", enabled=False):
-                features = muq(
-                    audio_tensor, output_hidden_states=False
-                ).last_hidden_state
-
-        features = features.cpu()
-        features = features.squeeze()
-        return {"muq_features": features.numpy(), "muq_length": features.shape[0]}
+                layer = muq(audio_tensor, output_hidden_states=False).last_hidden_state
+        layer = layer.cpu()
+        layer = layer.squeeze()
+        return {"muq_features": layer.numpy(), "muq_length": layer.shape[0]}
 
     print("Mapping dataset to features...")
     feature_dataset = ds.map(
@@ -58,8 +88,8 @@ def main():
     )
     print(feature_dataset)
 
-    print(f"Saving to {OUTPUT_DATASET_PATH}...")
-    feature_dataset.save_to_disk(OUTPUT_DATASET_PATH)
+    print(f"Saving to {output_dataset_path}...")
+    feature_dataset.save_to_disk(str(output_dataset_path))
     print("Done")
 
 

@@ -28,7 +28,7 @@ from networks.transformer.encoder import HEIGHT_REDUCTION, WIDTH_REDUCTION
 from networks.transformer.muq_encoder import MUQ_DIMENSION_REDUCTION
 
 KERN_COLUMN = "transcript"
-# KERN_COLUMN = "kern"
+DATASET_INFORMATION_FOLDER = "Dataset_information"
 
 
 class ARDataModule(LightningDataModule):
@@ -179,7 +179,7 @@ class ARDataset(Dataset):
             )
 
         # Check and retrieve vocabulary
-        vocab_folder = os.path.join("Quartets", "vocabs")
+        vocab_folder = os.path.join(DATASET_INFORMATION_FOLDER, "vocabs")
         os.makedirs(vocab_folder, exist_ok=True)
         vocab_name = self.ds_name + f"_{vocab_name}"
         vocab_name += "_withvc" if self.use_voice_change_token else ""
@@ -191,7 +191,7 @@ class ARDataset(Dataset):
 
         # Check and retrive max lengths
         # Set max_seq_len, max_audio_len
-        max_lens_folder = os.path.join("Quartets", "max_lens")
+        max_lens_folder = os.path.join(DATASET_INFORMATION_FOLDER, "max_lens")
         os.makedirs(max_lens_folder, exist_ok=True)
 
         os.makedirs(os.path.join(max_lens_folder, self.encoder_name), exist_ok=True)
@@ -292,7 +292,7 @@ class ARDataset(Dataset):
         return max_lens
 
     def make_max_lens(self):
-        # Set the maximum lengths for the whole QUARTETS collection:
+        # Set the maximum lengths for the whole Dataset:
         # 1) Get the maximum transcript length
         # 2) Get the maximum audio length
 
@@ -323,7 +323,6 @@ class ARDataset(Dataset):
                 else:
                     max_preprocessed_muq = max(
                         max_preprocessed_muq,
-                        # torch.as_tensor(sample["muq_features"]).shape[0],
                         sample["muq_length"],
                     )
                 # Max transcript length

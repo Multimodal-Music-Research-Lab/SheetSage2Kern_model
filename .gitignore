@@ -398,7 +398,7 @@ FodyWeavers.xsd
 *.sln.iml
 
 # Extras
-Quartets
+Dataset_information
 joblib_cache
 wandb
 weights
