@@ -10,13 +10,14 @@ from lightning.pytorch.loggers.wandb import WandbLogger
 from my_utils.ar_dataset import ARDataModule
 from my_utils.consts import (
     CNN_ENCODER,
+    MID_LEVEL_TOKENISER,
     VALID_ENCODERS,
 )
 from my_utils.seed import seed_everything
 from networks.transformer.model import A2STransformer
 
 seed_everything(42, benchmark=False)
-PROJECT_NAME = "HookKernModel"
+PROJECT_NAME = "HookKernModel_hooktheory_dataset"
 
 
 def train(
@@ -29,6 +30,12 @@ def train(
     batch_size: int = 16,
     check_val_every_n_epoch: int = 5,
     encoder=CNN_ENCODER,
+    weight_decay=0.0,
+    learning_rate=1e-4,
+    ff_dim_multiplier=1,
+    resume_from=None,
+    label_smoothing=0.0,
+    tokeniser=MID_LEVEL_TOKENISER,
 ):
     gc.collect()
     torch.cuda.empty_cache()
@@ -42,6 +49,13 @@ def train(
     print(f"\tPatience: {patience}")
     print(f"\tBatch size: {batch_size}")
     print(f"\tCheck Val Every N epoch: {check_val_every_n_epoch}")
+    print(f"\tlearning rate: {learning_rate}")
+    print(f"\tweight decay : {weight_decay}")
+    print(f"\tencoder : {encoder}")
+    print(f"\tff_dim_multiplier : {ff_dim_multiplier}")
+    print(f"\tResuming from  : {resume_from}")
+    print(f"\tLabel smoothing  : {label_smoothing}")
+    print(f"\ttokeniser  : {tokeniser}")
 
     if encoder not in VALID_ENCODERS:
         raise ValueError(encoder)
@@ -53,7 +67,9 @@ def train(
         use_voice_change_token=use_voice_change_token,
         batch_size=batch_size,
         encoder_name=encoder,
+        tokeniser=tokeniser,
     )
+
     datamodule.setup(stage="fit")
     w2i, i2w = datamodule.get_w2i_and_i2w()
 
@@ -67,8 +83,10 @@ def train(
         attn_window=attn_window,
         teacher_forcing_prob=0.2,
         encoder=encoder,
-        lr=1e-5,
-        weight_decay=1e-3,
+        lr=learning_rate,
+        weight_decay=weight_decay,
+        ff_dim_multiplier=ff_dim_multiplier,
+        label_smoothing=label_smoothing,
     )
 
     # Train, validate and test
@@ -105,7 +123,7 @@ def train(
     ]
     trainer = Trainer(
         logger=WandbLogger(
-            project=PROJECT_NAME + "_test2",
+            project=PROJECT_NAME,
             group=f"{model_type} with adamW and prenorm"
             if not use_voice_change_token
             else f"{model_type}-VCT",
@@ -120,10 +138,13 @@ def train(
         benchmark=False,
         precision="16-mixed",  # Mixed precision training
     )
-    trainer.fit(model, datamodule=datamodule)
+    trainer.fit(
+        model,
+        datamodule=datamodule,
+        ckpt_path=resume_from,
+    )
     model = A2STransformer.load_from_checkpoint(callbacks[0].best_model_path)
     model.freeze()
-    trainer.test(model, datamodule=datamodule)
 
 
 if __name__ == "__main__":

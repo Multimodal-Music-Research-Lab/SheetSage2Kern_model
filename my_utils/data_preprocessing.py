@@ -4,7 +4,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-from my_utils.consts import CNN_ENCODER, MUQ_ENCODER
+from my_utils.consts import CNN_ENCODER, MUQ_ENCODER, PREPROCESSED_MUQ_ENCODER
 
 MEMORY = joblib.memory.Memory("./joblib_cache", mmap_mode="r", verbose=0)
 NUM_CHANNELS = 1
@@ -62,11 +62,18 @@ def preprocess_audio(
 #     x = x.type(dtype=dtype)
 #     return x
 def pad_batch_audios(
-    x, dtype=torch.float32
-):  # TODO this will only work for precomputed muq
-    max_time = max(sample.shape[0] for sample in x)
-
-    x = torch.stack([F.pad(i, pad=(0, 0, 0, max_time - i.shape[0])) for i in x], dim=0)
+    x,
+    feature_type,
+    dtype=torch.float32,
+):
+    if feature_type == PREPROCESSED_MUQ_ENCODER:
+        max_time = max(sample.shape[0] for sample in x)
+        x = torch.stack(
+            [F.pad(i, pad=(0, 0, 0, max_time - i.shape[0])) for i in x], dim=0
+        )
+    else:
+        max_width = max(x, key=lambda sample: sample.shape[-1]).shape[-1]
+        x = torch.stack([F.pad(i, pad=(0, max_width - i.shape[-1])) for i in x], dim=0)
     x = x.to(dtype=dtype)
     return x
 
@@ -83,10 +90,10 @@ def pad_batch_transcripts(x, dtype=torch.int32):
 ################################# AR PREPROCESSING:
 
 
-def ar_batch_preparation(batch):
+def ar_batch_preparation(batch, feature_type=CNN_ENCODER):
     x, xl, y = zip(*batch)
     # Zero-pad audios to maximum batch audio width
-    x = pad_batch_audios(x, dtype=torch.float32)
+    x = pad_batch_audios(x, feature_type, dtype=torch.float32)
     xl = torch.tensor(xl, dtype=torch.int32)
     # Decoder input: transcript[:-1]
     y_in = [i[:-1] for i in y]

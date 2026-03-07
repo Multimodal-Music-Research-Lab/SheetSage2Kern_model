@@ -6,6 +6,8 @@ import torch.nn as nn
 from my_utils.data_preprocessing import IMG_HEIGHT, NUM_CHANNELS
 from networks.transformer.encoder import HEIGHT_REDUCTION, WIDTH_REDUCTION, Encoder
 
+OUTPUT_CHANNELS = 256
+
 
 class PositionalEncoding2D(nn.Module):
     def __init__(self, num_channels, max_height, max_width, dropout_p: float = 0.1):
@@ -54,14 +56,14 @@ class CnnEncoder(AudioEncoderBase):
     ):
         super().__init__()
         self.pos_2d = PositionalEncoding2D(
-            num_channels=256,
+            num_channels=OUTPUT_CHANNELS,
             max_height=math.ceil(IMG_HEIGHT / HEIGHT_REDUCTION),
             max_width=math.ceil(max_audio_len / WIDTH_REDUCTION),
         )
         self.encoder = Encoder(in_channels=NUM_CHANNELS)
 
     def get_output_dim(self) -> int:  # Embedding dimension
-        return 256
+        return OUTPUT_CHANNELS
 
     def forward(self, x):
         x = self.encoder(x=x)

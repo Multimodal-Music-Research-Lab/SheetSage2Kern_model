@@ -1,9 +1,10 @@
 import json
 import math
 import os
+from functools import partial
 
 import torch
-from datasets import load_from_disk
+from datasets import load_dataset, load_from_disk
 from lightning.pytorch import LightningDataModule
 from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
@@ -11,6 +12,7 @@ from tqdm import tqdm
 from my_utils.consts import (
     CNN_ENCODER,
     EOS_TOKEN,
+    MID_LEVEL_TOKENISER,
     MUQ_ENCODER,
     PREPROCESSED_MUQ_ENCODER,
     SOS_TOKEN,
@@ -40,6 +42,7 @@ class ARDataModule(LightningDataModule):
         batch_size: int = 16,
         num_workers: int = 20,
         encoder_name=CNN_ENCODER,
+        tokeniser=MID_LEVEL_TOKENISER,
     ):
         super(ARDataModule, self).__init__()
         self.ds_location = ds_location
@@ -47,6 +50,7 @@ class ARDataModule(LightningDataModule):
         self.use_voice_change_token = use_voice_change_token
         self.batch_size = batch_size
         self.num_workers = num_workers
+        self.tokeniser = tokeniser
 
         # Datasets
         # To prevent executing setup() twice
@@ -65,6 +69,7 @@ class ARDataModule(LightningDataModule):
                     partition_type="train",
                     use_voice_change_token=self.use_voice_change_token,
                     encoder_name=self.encoder_name,
+                    tokeniser=self.tokeniser,
                 )
             if not self.val_ds:
                 self.val_ds = ARDataset(
@@ -73,6 +78,7 @@ class ARDataModule(LightningDataModule):
                     partition_type=VALIDATION_SPLIT,
                     use_voice_change_token=self.use_voice_change_token,
                     encoder_name=self.encoder_name,
+                    tokeniser=self.tokeniser,
                 )
 
         if stage == "test" or stage == "predict":
@@ -83,24 +89,27 @@ class ARDataModule(LightningDataModule):
                     partition_type="test",
                     use_voice_change_token=self.use_voice_change_token,
                     encoder_name=self.encoder_name,
+                    tokeniser=self.tokeniser,
                 )
 
     def train_dataloader(self):
+        collate_fn = partial(ar_batch_preparation, feature_type=self.encoder_name)
         return DataLoader(
             self.train_ds,
             batch_size=self.batch_size,
             shuffle=True,
             num_workers=self.num_workers,
-            collate_fn=ar_batch_preparation,
+            collate_fn=collate_fn,
         )  # prefetch_factor=2
 
     def val_dataloader(self):
+        collate_fn = partial(ar_batch_preparation, feature_type=self.encoder_name)
         return DataLoader(
             self.val_ds,
             batch_size=1,
             shuffle=False,
             num_workers=self.num_workers,
-            collate_fn=ar_batch_preparation,  # TODO temprorary
+            collate_fn=collate_fn,  # TODO temprorary
         )  # prefetch_factor=2
 
     def test_dataloader(self):
@@ -148,8 +157,10 @@ class ARDataset(Dataset):
         partition_type: str,
         use_voice_change_token: bool = False,
         encoder_name=CNN_ENCODER,
+        tokeniser=MID_LEVEL_TOKENISER,
     ):
         self.ds_name = ds_name.lower()
+        self.tokeniser = tokeniser
         self.ds_location = ds_location
         self.partition_type = partition_type
         self.use_voice_change_token = use_voice_change_token
@@ -159,7 +170,7 @@ class ARDataset(Dataset):
 
     def init(self, vocab_name: str = "w2i"):
         # Initialize krn parser
-        self.krn_parser = GtParser()
+        self.krn_parser = GtParser(tokenizer_type=self.tokeniser)
 
         # Check partition type
         assert self.partition_type in SPLITS, (
@@ -168,18 +179,14 @@ class ARDataset(Dataset):
 
         # Get audios and transcripts files
         if self.encoder_name == PREPROCESSED_MUQ_ENCODER:
-            self.ds = load_from_disk(self.ds_location)[self.partition_type]
+            self.ds = self._get_hf_dataset(self.ds_location)[self.partition_type]
         else:
-            self.ds = load_from_disk(self.ds_location)[self.partition_type].filter(
-                lambda example: (
-                    example["audio"]["sampling_rate"] * 1
-                    <= len(example["audio"]["array"])
-                    <= example["audio"]["sampling_rate"] * 60
-                )
-            )
+            self.ds = self._get_hf_dataset(self.ds_location)[self.partition_type]
 
         # Check and retrieve vocabulary
-        vocab_folder = os.path.join(DATASET_INFORMATION_FOLDER, "vocabs")
+        vocab_folder = os.path.join(
+            DATASET_INFORMATION_FOLDER, "vocabs", self.tokeniser
+        )
         os.makedirs(vocab_folder, exist_ok=True)
         vocab_name = self.ds_name + f"_{vocab_name}"
         vocab_name += "_withvc" if self.use_voice_change_token else ""
@@ -191,15 +198,14 @@ class ARDataset(Dataset):
 
         # Check and retrive max lengths
         # Set max_seq_len, max_audio_len
-        max_lens_folder = os.path.join(DATASET_INFORMATION_FOLDER, "max_lens")
+        max_lens_folder = os.path.join(
+            DATASET_INFORMATION_FOLDER, "max_lens", self.encoder_name, self.tokeniser
+        )
         os.makedirs(max_lens_folder, exist_ok=True)
 
-        os.makedirs(os.path.join(max_lens_folder, self.encoder_name), exist_ok=True)
         max_lens_name = vocab_name
 
-        self.max_lens_path = os.path.join(
-            max_lens_folder, self.encoder_name, max_lens_name
-        )
+        self.max_lens_path = os.path.join(max_lens_folder, max_lens_name)
         max_lens = self.check_and_retrieve_max_lens()
         self.max_seq_len = max_lens["max_seq_len"]
         self.max_audio_len = max_lens["max_audio_len"]
@@ -229,7 +235,7 @@ class ARDataset(Dataset):
         return torch.tensor(y, dtype=torch.int64)
 
     def make_vocabulary(self):
-        full_ds = load_from_disk(self.ds_location)
+        full_ds = self._get_hf_dataset(self.ds_location)
 
         vocab = []
         for split in SPLITS:
@@ -251,9 +257,12 @@ class ARDataset(Dataset):
 
     def get_number_of_frames(self, audio):
         if self.encoder_name == CNN_ENCODER:
-            return math.ceil(audio.shape[1] / HEIGHT_REDUCTION) * math.ceil(
-                audio.shape[2] / WIDTH_REDUCTION
-            )
+            # return math.ceil(audio.shape[1] / HEIGHT_REDUCTION) * math.ceil(
+            #     audio.shape[2] / WIDTH_REDUCTION
+            # )
+            w_valid = math.ceil(audio.shape[2] / WIDTH_REDUCTION)
+            h_out = math.ceil(audio.shape[1] / HEIGHT_REDUCTION)
+            return (w_valid, h_out)
         elif self.encoder_name == PREPROCESSED_MUQ_ENCODER:
             return audio.shape[0]
         elif self.encoder_name == MUQ_ENCODER:
@@ -295,11 +304,12 @@ class ARDataset(Dataset):
         # Set the maximum lengths for the whole Dataset:
         # 1) Get the maximum transcript length
         # 2) Get the maximum audio length
-
-        print("creating max lengths")
+        print("=" * 30)
+        print("CREATING MAX LENGTHS")
+        print("=" * 30)
         max_seq_len = 0
 
-        full_ds = load_from_disk(self.ds_location)
+        full_ds = self._get_hf_dataset(self.ds_location)
         max_audio_raw = None
         max_audio_len = 0
         max_duration = 0.0
@@ -311,8 +321,6 @@ class ARDataset(Dataset):
                 if self.encoder_name != PREPROCESSED_MUQ_ENCODER:
                     sr = sample["audio"]["sampling_rate"]
                     raw_audio = sample["audio"]["array"]
-                    if not (sr <= len(raw_audio) <= sr * 60):
-                        continue
 
                     dur = raw_audio.shape[0] / sr
 
@@ -326,6 +334,7 @@ class ARDataset(Dataset):
                         sample["muq_length"],
                     )
                 # Max transcript length
+
                 transcript = self.krn_parser.convert_text(text=sample[KERN_COLUMN])
                 max_seq_len = max(max_seq_len, len(transcript))
 
@@ -351,3 +360,10 @@ class ARDataset(Dataset):
             "max_audio_len": max_audio_len,
             "max_encoder_output_len": max_encoder_output_len,
         }
+
+    def _get_hf_dataset(self, ds_location):
+        try:
+            return load_from_disk(ds_location)
+        except FileNotFoundError:
+            print("loading dataset from huggingface")
+            return load_dataset(ds_location)

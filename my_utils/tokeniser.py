@@ -1,4 +1,7 @@
-def process_text(lines, tokenizer_type: str = "word"):
+from my_utils.word_level_tokeniser import krnParser
+
+
+def process_text(lines, tokenizer_type: str = "medium"):
     """Reads and processes the input file with text preprocessing and optional character-level or middle level tokenization."""
 
     reserved_lines = {"!!linebreak", "!!pagebreak", "*I", "*F:", "!LO"}
@@ -18,14 +21,29 @@ def process_text(lines, tokenizer_type: str = "word"):
             piece_started = False  # key change, go back to reading headers
         if line.startswith("*"):
             piece_started = False
-        # *k[f#c#g#]	*k[f#c#g#]
 
         # Skip reserved lines
         if any(reserved in line for reserved in reserved_lines):
             continue
+        if tokenizer_type == "medium":
+            tokens.extend(middle_level_split(line.replace("\n", ""), piece_started))
+        else:
+            line_elements = line.replace("\n", "").split("\t")
 
-        tokens.extend(middle_level_split(line.replace("\n", ""), piece_started))
-
+            if tokenizer_type == "character":
+                for element in line_elements:
+                    for char in element:
+                        tokens.append(char)
+                    tokens.append("<t>")
+            elif tokenizer_type == "word":
+                for element in line_elements:
+                    tokens.append(element)
+                    tokens.append("<t>")
+            else:
+                raise ValueError(f"Unknown tokenizer type: {tokenizer_type}")
+            if tokens[-1] == "<t>":
+                tokens.pop()
+                tokens.append("<n>")
     return tokens
 
 
@@ -164,11 +182,13 @@ def untokenize(tokens):
 
 class GtParser:
     def __init__(
-        self, split_enc=False, process_harm=False, tokenizer_type="word"
+        self, split_enc=False, process_harm=False, tokenizer_type="medium"
     ) -> None:
         self.split_enc = split_enc
         self.process_harm = process_harm
         self.tokenizer_type = tokenizer_type
+        if self.tokenizer_type == "word":
+            self.tokenizer = krnParser()
 
     def convert(self, src_file: str):
         with open(src_file, "r", encoding="utf-8") as f:
@@ -176,5 +196,13 @@ class GtParser:
             return process_text(lines, self.tokenizer_type)
 
     def convert_text(self, text: str):
-        lines = text.splitlines()
+        # if self.tokenizer_type == "medium":
+        if self.tokenizer_type == "word":
+            cleaned = self.tokenizer.cleanKernFile(text)
+            lines = ["\t".join(x) for x in cleaned]
+        else:
+            lines = text.splitlines()
+
         return process_text(lines, self.tokenizer_type)
+        # elif self.tokenizer_type == "word":
+        #     return self.tokenizer.convert(text)

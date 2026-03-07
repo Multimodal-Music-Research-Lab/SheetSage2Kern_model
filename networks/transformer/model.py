@@ -35,11 +35,14 @@ class A2STransformer(LightningModule):
         encoder=CNN_ENCODER,
         lr=1e-4,
         weight_decay=0.0,
+        ff_dim_multiplier=1,
+        label_smoothing=0.0,
     ):
         super(A2STransformer, self).__init__()
         # Save hyperparameters
         self.save_hyperparameters()
         # Dictionaries
+        self.label_smoothing = label_smoothing
         self.w2i = w2i
         self.i2w = i2w
         self.ytest_i2w = ytest_i2w if ytest_i2w is not None else i2w
@@ -77,11 +80,13 @@ class A2STransformer(LightningModule):
             padding_idx=self.padding_idx,
             attn_window=attn_window,
             embedding_dim=embedding_dim,
-            ff_dim=embedding_dim,
+            ff_dim=embedding_dim * ff_dim_multiplier,
         )
         self.summary()
         # Loss
-        self.compute_loss = CrossEntropyLoss(ignore_index=self.padding_idx)
+        self.compute_loss = CrossEntropyLoss(
+            ignore_index=self.padding_idx, label_smoothing=self.label_smoothing
+        )
         # Predictions
         self.Y = []
         self.YHat = []
@@ -162,6 +167,7 @@ class A2STransformer(LightningModule):
         x, xl, y_in, y_out = batch
         yhat = self.forward(x=x, xl=xl, y_in=y_in)
         loss = self.compute_loss(yhat, y_out)
+
         self.log("val_loss", loss, prog_bar=True, logger=True, on_epoch=True)
         return  # TODO temp
         x, y = batch

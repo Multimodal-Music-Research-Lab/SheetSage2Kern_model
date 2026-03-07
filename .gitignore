@@ -404,3 +404,7 @@ wandb
 weights
 *.mid
 *.txt
+.vscode
+*.krn
+*.png
+*.wav

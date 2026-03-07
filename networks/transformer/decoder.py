@@ -96,7 +96,6 @@ class Decoder(nn.Module):
         tgt_key_padding_mask = (
             None if memory_key_padding_mask is None else tgt_key_padding_mask
         )  # memory_key_padding_mask is None during inference
-
         # Transformer decoder
         tgt_pred = self.transformer_decoder(
             tgt=tgt_emb,
@@ -124,16 +123,33 @@ class Decoder(nn.Module):
         # When using batches, the spectrograms are padded to the same length
         # We need to mask the padding so the attention mechanism ignores it
 
+        # previously all of the padding was being applied to the end,
+        # but cnn output was flattened to B,H*W,C before coming in in
+        # meaning padding is interspersed at end of every previous width
+        if memory_len.ndim == 2:
+            H_out = memory_len[0, 1].item()
+            W_out_max = memory.shape[1] // H_out
+            memory_pad_mask_2d = torch.zeros(
+                (memory.shape[0], H_out, W_out_max),
+                dtype=torch.bool,
+                device=memory.device,
+            )
+
+            for i, (valid_w, _) in enumerate(memory_len):
+                memory_pad_mask_2d[i, :, valid_w:] = True
+
+            return memory_pad_mask_2d.flatten(1)
         # memory.shape = [batch_size, src_sec_len, emb_dim]
         # memory_len.shape = [batch_size]
         # memory_pad_mask.shape = [batch_size, src_sec_len]
         # Value 1 (True) means "ignored" and value 0 (False) means "not ignored"
-        memory_pad_mask = torch.zeros(
-            memory.shape[:2], dtype=torch.float32, device=memory.device
-        )
-        for i, l in enumerate(memory_len):
-            memory_pad_mask[i, l:] = 1
-        return memory_pad_mask
+        else:
+            memory_pad_mask = torch.zeros(
+                memory.shape[:2], dtype=torch.bool, device=memory.device
+            )
+            for i, l in enumerate(memory_len):
+                memory_pad_mask[i, l:] = True
+            return memory_pad_mask
 
     @staticmethod
     def create_variable_window_mask(
@@ -174,13 +190,21 @@ class Decoder(nn.Module):
                 tgt_sec_len, self.attn_window, device=tgt.device
             )
         else:
-            tgt_mask = nn.Transformer.generate_square_subsequent_mask(
-                tgt_sec_len, tgt.device
+            # tgt_mask = nn.Transformer.generate_square_subsequent_mask(
+            #     tgt_sec_len, tgt.device
+            # )
+            tgt_mask = torch.triu(
+                torch.ones(
+                    (tgt_sec_len, tgt_sec_len), dtype=torch.bool, device=tgt.device
+                ),
+                diagonal=1,
             )
 
         # 0 == "<PAD>"
         # Pad token to be ignored by the attention mechanism
         # Value 1 (True) means "ignored" and value 0 (False) means "not ignored"
         # tgt_pad_mask.shape = [batch_size, tgt_sec_len]
-        tgt_pad_mask = (tgt == 0).to(torch.float32)
+        # tgt_pad_mask = (tgt == 0).to(torch.float32)
+        # tgt_pad_mask = (tgt == 0).to(torch.float32)
+        tgt_pad_mask = (tgt == 0).to(torch.bool)
         return tgt_mask, tgt_pad_mask

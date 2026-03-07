@@ -76,7 +76,7 @@ def main():
             with torch.autocast(device_type="cuda", enabled=False):
                 layer = muq(audio_tensor, output_hidden_states=False).last_hidden_state
         layer = layer.cpu()
-        layer = layer.squeeze()
+        layer = layer.squeeze(0)
         return {"muq_features": layer.numpy(), "muq_length": layer.shape[0]}
 
     print("Mapping dataset to features...")
