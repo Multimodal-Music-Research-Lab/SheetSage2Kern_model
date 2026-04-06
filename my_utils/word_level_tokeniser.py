@@ -8,8 +8,6 @@ STEP_CHANGE_TOKEN = "<COR>"
 
 
 class krnParser:
-    """Main Kern parser operations class."""
-
     def __init__(self, use_voice_change_token: bool = True) -> None:
         self.reserved_words = ["clef", "k[", "*M"]
         self.reserved_dot = "."
@@ -86,7 +84,6 @@ class krnParser:
             ]
 
             out_score.append(out_voice)
-        pass
         out_score = np.array(out_score)
 
         # Postprocess obtained score
@@ -130,8 +127,6 @@ class krnParser:
 
         return out_token
 
-    # ---------------------------------------------------------------------------- CONVERT CALL
-
     def convert(self, text: str) -> List[str]:
         out = self.cleanKernFile(text).T
 
@@ -147,3 +142,6 @@ class krnParser:
         del out_line[-1]
 
         return out_line
+
+    def convert_text(self, text: str) -> List[str]:
+        return self.convert(text)

@@ -12,13 +12,20 @@ EMB_LAYER_SIZE = 256
 
 
 class LinearBridge(nn.Module):
-    def __init__(self, muq_dim=1024, model_dim=256):
+    def __init__(self, temporal_downsampling, muq_dim=1024, model_dim=256):
         super().__init__()
         self.proj = nn.Linear(muq_dim, model_dim)
         self.norm = nn.LayerNorm(model_dim)
+        self.use_temporal_downsampling = temporal_downsampling
+        if temporal_downsampling:
+            self.pool = nn.AvgPool1d(kernel_size=5, stride=5)
 
     def forward(self, x):
         x = self.proj(x)
+        if self.use_temporal_downsampling:
+            x = x.transpose(1, 2)
+            x = self.pool(x)
+            x = x.transpose(1, 2)
         x = self.norm(x)
         return x
 
@@ -58,17 +65,17 @@ class MuqEncoder(AudioEncoderBase):
 
 class MuqEncoderPreprocessed(AudioEncoderBase):
     def __init__(
-        self,
-        max_encoder_output_length,
-        max_audio_len,
+        self, max_encoder_output_length, max_audio_len, temporal_downsampling=False
     ):
         super().__init__()
+        downsampling = 5 if temporal_downsampling else 1
 
         self.pe = PositionalEncoding1D(
-            emb_dim=EMB_LAYER_SIZE, max_len=max_encoder_output_length
+            emb_dim=EMB_LAYER_SIZE,
+            max_len=max_encoder_output_length // downsampling,
         )
 
-        self.proj_layer = LinearBridge()
+        self.proj_layer = LinearBridge(temporal_downsampling)
 
     def forward(self, x):
         x = self.proj_layer(x)

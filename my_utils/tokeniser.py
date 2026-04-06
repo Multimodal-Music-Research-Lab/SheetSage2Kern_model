@@ -1,10 +1,15 @@
+# source - https://github.com/JuanCarlosMartinezSevilla/ISMIR-Jazzmus/blob/main/jazzmus/dataset/tokenizer.py
 from my_utils.word_level_tokeniser import krnParser
 
 
 def process_text(lines, tokenizer_type: str = "medium"):
     """Reads and processes the input file with text preprocessing and optional character-level or middle level tokenization."""
 
-    reserved_lines = {"!!linebreak", "!!pagebreak", "*I", "*F:", "!LO"}
+    reserved_lines = {
+        "!!linebreak",
+        "!!pagebreak",
+        "!LO",
+    }
     piece_started = False
     tokens = []
 
@@ -196,13 +201,6 @@ class GtParser:
             return process_text(lines, self.tokenizer_type)
 
     def convert_text(self, text: str):
-        # if self.tokenizer_type == "medium":
-        if self.tokenizer_type == "word":
-            cleaned = self.tokenizer.cleanKernFile(text)
-            lines = ["\t".join(x) for x in cleaned]
-        else:
-            lines = text.splitlines()
+        lines = text.splitlines()  # TODO temp
 
         return process_text(lines, self.tokenizer_type)
-        # elif self.tokenizer_type == "word":
-        #     return self.tokenizer.convert(text)

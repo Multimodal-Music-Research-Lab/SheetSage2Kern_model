@@ -14,7 +14,9 @@ from my_utils.consts import (
     EOS_TOKEN,
     MID_LEVEL_TOKENISER,
     MUQ_ENCODER,
+    PRECOMPUTED_ENCODERS,
     PREPROCESSED_MUQ_ENCODER,
+    PREPROCESSED_MUQ_ENCODER_TEMPORAL_DOWNSAMPLING,
     SOS_TOKEN,
     SPLITS,
     VALIDATION_SPLIT,
@@ -26,6 +28,7 @@ from my_utils.data_preprocessing import (
     set_pad_index,
 )
 from my_utils.tokeniser import GtParser
+from my_utils.word_level_tokeniser import krnParser
 from networks.transformer.encoder import HEIGHT_REDUCTION, WIDTH_REDUCTION
 from networks.transformer.muq_encoder import MUQ_DIMENSION_REDUCTION
 
@@ -38,8 +41,8 @@ class ARDataModule(LightningDataModule):
         self,
         ds_name,
         ds_location,
-        use_voice_change_token: bool = False,
         batch_size: int = 16,
+        train_subset_size=None,
         num_workers: int = 20,
         encoder_name=CNN_ENCODER,
         tokeniser=MID_LEVEL_TOKENISER,
@@ -47,8 +50,8 @@ class ARDataModule(LightningDataModule):
         super(ARDataModule, self).__init__()
         self.ds_location = ds_location
         self.ds_name = ds_name
-        self.use_voice_change_token = use_voice_change_token
         self.batch_size = batch_size
+        self.train_subset_size = train_subset_size
         self.num_workers = num_workers
         self.tokeniser = tokeniser
 
@@ -67,19 +70,23 @@ class ARDataModule(LightningDataModule):
                     ds_name=self.ds_name,
                     ds_location=self.ds_location,
                     partition_type="train",
-                    use_voice_change_token=self.use_voice_change_token,
                     encoder_name=self.encoder_name,
                     tokeniser=self.tokeniser,
                 )
+                if self.train_subset_size is not None:
+                    subset_size = min(self.train_subset_size, len(self.train_ds.ds))
+                    self.train_ds.ds = self.train_ds.ds.select(range(subset_size))
             if not self.val_ds:
-                self.val_ds = ARDataset(
-                    ds_name=self.ds_name,
-                    ds_location=self.ds_location,
-                    partition_type=VALIDATION_SPLIT,
-                    use_voice_change_token=self.use_voice_change_token,
-                    encoder_name=self.encoder_name,
-                    tokeniser=self.tokeniser,
-                )
+                if self.train_subset_size is not None:
+                    self.val_ds = self.train_ds
+                else:
+                    self.val_ds = ARDataset(
+                        ds_name=self.ds_name,
+                        ds_location=self.ds_location,
+                        partition_type=VALIDATION_SPLIT,
+                        encoder_name=self.encoder_name,
+                        tokeniser=self.tokeniser,
+                    )
 
         if stage == "test" or stage == "predict":
             if not self.test_ds:
@@ -87,7 +94,6 @@ class ARDataModule(LightningDataModule):
                     ds_name=self.ds_name,
                     ds_location=self.ds_location,
                     partition_type="test",
-                    use_voice_change_token=self.use_voice_change_token,
                     encoder_name=self.encoder_name,
                     tokeniser=self.tokeniser,
                 )
@@ -109,7 +115,7 @@ class ARDataModule(LightningDataModule):
             batch_size=1,
             shuffle=False,
             num_workers=self.num_workers,
-            collate_fn=collate_fn,  # TODO temprorary
+            collate_fn=collate_fn,  # TODO temp
         )  # prefetch_factor=2
 
     def test_dataloader(self):
@@ -155,7 +161,6 @@ class ARDataset(Dataset):
         ds_name: str,
         ds_location: str,
         partition_type: str,
-        use_voice_change_token: bool = False,
         encoder_name=CNN_ENCODER,
         tokeniser=MID_LEVEL_TOKENISER,
     ):
@@ -163,14 +168,18 @@ class ARDataset(Dataset):
         self.tokeniser = tokeniser
         self.ds_location = ds_location
         self.partition_type = partition_type
-        self.use_voice_change_token = use_voice_change_token
         self.encoder_name = encoder_name
         self.init(vocab_name="ar_w2i")
         self.max_seq_len += 1  # Add 1 for EOS_TOKEN
 
     def init(self, vocab_name: str = "w2i"):
         # Initialize krn parser
-        self.krn_parser = GtParser(tokenizer_type=self.tokeniser)
+        if self.tokeniser == "original":
+            self.krn_parser = krnParser(
+                use_voice_change_token=False
+            )  # original paper uses false
+        else:
+            self.krn_parser = GtParser(tokenizer_type=self.tokeniser)
 
         # Check partition type
         assert self.partition_type in SPLITS, (
@@ -178,10 +187,7 @@ class ARDataset(Dataset):
         )
 
         # Get audios and transcripts files
-        if self.encoder_name == PREPROCESSED_MUQ_ENCODER:
-            self.ds = self._get_hf_dataset(self.ds_location)[self.partition_type]
-        else:
-            self.ds = self._get_hf_dataset(self.ds_location)[self.partition_type]
+        self.ds = self._get_hf_dataset(self.ds_location)[self.partition_type]
 
         # Check and retrieve vocabulary
         vocab_folder = os.path.join(
@@ -189,7 +195,6 @@ class ARDataset(Dataset):
         )
         os.makedirs(vocab_folder, exist_ok=True)
         vocab_name = self.ds_name + f"_{vocab_name}"
-        vocab_name += "_withvc" if self.use_voice_change_token else ""
         vocab_name += ".json"
         self.w2i_path = os.path.join(vocab_folder, vocab_name)
         self.w2i, self.i2w = self.check_and_retrieve_vocabulary()
@@ -212,8 +217,9 @@ class ARDataset(Dataset):
         self.max_encoder_output_len = max_lens["max_encoder_output_len"]
 
     def __getitem__(self, idx):
-        if self.encoder_name == PREPROCESSED_MUQ_ENCODER:
-            x = torch.as_tensor(self.ds[idx]["muq_features"])
+        if self.encoder_name in PRECOMPUTED_ENCODERS:
+            # x = torch.as_tensor(self.ds[idx]["muq_features"])
+            x = torch.as_tensor(self.ds[idx]["features"])
         else:
             x = preprocess_audio(
                 raw_audio=self.ds[idx]["audio"]["array"],
@@ -222,21 +228,28 @@ class ARDataset(Dataset):
                 encoder=self.encoder_name,
             )
         y = self.preprocess_transcript(text=self.ds[idx][KERN_COLUMN])
+
         if self.partition_type == "train":
             return x, self.get_number_of_frames(x), y
         elif self.partition_type == VALIDATION_SPLIT:
-            return x, self.get_number_of_frames(x), y  # TODO temprorary
-        return x, y
+            return x, self.get_number_of_frames(x), y
+        try:
+            return x, y, self.ds[idx]["file_name"]
+        except:
+            return x, y, ""
 
     def preprocess_transcript(self, text: str):
         y = self.krn_parser.convert_text(text=text)
         y = [SOS_TOKEN] + y + [EOS_TOKEN]
         y = [self.w2i[w] for w in y]
+
         return torch.tensor(y, dtype=torch.int64)
 
     def make_vocabulary(self):
         full_ds = self._get_hf_dataset(self.ds_location)
-
+        print("=" * 30)
+        print("Making vocabulary")
+        print("=" * 30)
         vocab = []
         for split in SPLITS:
             for text in full_ds[split][KERN_COLUMN]:
@@ -257,14 +270,16 @@ class ARDataset(Dataset):
 
     def get_number_of_frames(self, audio):
         if self.encoder_name == CNN_ENCODER:
-            # return math.ceil(audio.shape[1] / HEIGHT_REDUCTION) * math.ceil(
-            #     audio.shape[2] / WIDTH_REDUCTION
-            # )
             w_valid = math.ceil(audio.shape[2] / WIDTH_REDUCTION)
             h_out = math.ceil(audio.shape[1] / HEIGHT_REDUCTION)
             return (w_valid, h_out)
-        elif self.encoder_name == PREPROCESSED_MUQ_ENCODER:
-            return audio.shape[0]
+        elif self.encoder_name in PRECOMPUTED_ENCODERS:
+            temporal_downsampling = (
+                5
+                if self.encoder_name == PREPROCESSED_MUQ_ENCODER_TEMPORAL_DOWNSAMPLING
+                else 1
+            )
+            return audio.shape[0] // temporal_downsampling
         elif self.encoder_name == MUQ_ENCODER:
             # Shape is [B,raw_audio_length]
             return math.floor(audio.shape[1] / MUQ_DIMENSION_REDUCTION)
@@ -318,7 +333,7 @@ class ARDataset(Dataset):
         for split in SPLITS:
             print(f"Processing split: {split}")
             for sample in tqdm(full_ds[split], desc=f"{split}"):
-                if self.encoder_name != PREPROCESSED_MUQ_ENCODER:
+                if self.encoder_name not in PRECOMPUTED_ENCODERS:
                     sr = sample["audio"]["sampling_rate"]
                     raw_audio = sample["audio"]["array"]
 
@@ -331,14 +346,26 @@ class ARDataset(Dataset):
                 else:
                     max_preprocessed_muq = max(
                         max_preprocessed_muq,
-                        sample["muq_length"],
+                        sample["length"],
+                        # sample["muq_length"],
                     )
-                # Max transcript length
 
                 transcript = self.krn_parser.convert_text(text=sample[KERN_COLUMN])
                 max_seq_len = max(max_seq_len, len(transcript))
 
-        if self.encoder_name != PREPROCESSED_MUQ_ENCODER:
+        MAX_OUTPUT_LEN = {
+            PREPROCESSED_MUQ_ENCODER: lambda max_audio_len, max_precomputed_len: (
+                max_precomputed_len
+            ),
+            MUQ_ENCODER: lambda max_audio_len, max_precomputed_len: math.floor(
+                max_audio_len / MUQ_DIMENSION_REDUCTION
+            ),
+            CNN_ENCODER: lambda max_audio_len, max_precomputed_len: (
+                math.ceil(IMG_HEIGHT / HEIGHT_REDUCTION)
+                * math.ceil(max_audio_len / WIDTH_REDUCTION)
+            ),
+        }
+        if self.encoder_name not in PRECOMPUTED_ENCODERS:
             audio = preprocess_audio(
                 raw_audio=max_audio_raw,
                 sr=max_audio_sr,
@@ -347,18 +374,12 @@ class ARDataset(Dataset):
             )
             max_audio_len = audio.shape[-1]
 
-        if self.encoder_name == PREPROCESSED_MUQ_ENCODER:
-            max_encoder_output_len = max_preprocessed_muq
-        elif self.encoder_name == MUQ_ENCODER:
-            max_encoder_output_len = math.floor(max_audio_len / MUQ_DIMENSION_REDUCTION)
-        else:
-            max_encoder_output_len = math.ceil(
-                IMG_HEIGHT / HEIGHT_REDUCTION
-            ) * math.ceil(max_audio_len / WIDTH_REDUCTION)
         return {
             "max_seq_len": max_seq_len,
             "max_audio_len": max_audio_len,
-            "max_encoder_output_len": max_encoder_output_len,
+            "max_encoder_output_len": MAX_OUTPUT_LEN[self.encoder_name](
+                max_audio_len, max_preprocessed_muq
+            ),
         }
 
     def _get_hf_dataset(self, ds_location):

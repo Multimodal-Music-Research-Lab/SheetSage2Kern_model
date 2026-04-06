@@ -1,3 +1,4 @@
+# torch.cuda.set_per_process_memory_fraction(0.75, device=0)
 import gc
 from pathlib import Path
 
@@ -11,23 +12,22 @@ from my_utils.ar_dataset import ARDataModule
 from my_utils.consts import (
     CNN_ENCODER,
     MID_LEVEL_TOKENISER,
+    PROJECT_NAME,
     VALID_ENCODERS,
 )
 from my_utils.seed import seed_everything
 from networks.transformer.model import A2STransformer
 
 seed_everything(42, benchmark=False)
-PROJECT_NAME = "HookKernModel_hooktheory_dataset"
 
 
 def train(
     ds_location: str,
-    model_type: str = "transformer",
     attn_window: int = -1,
-    use_voice_change_token: bool = False,
     epochs: int = 1000,
     patience: int = 20,
-    batch_size: int = 16,
+    batch_size: int = 8,
+    train_subset_size=None,
     check_val_every_n_epoch: int = 5,
     encoder=CNN_ENCODER,
     weight_decay=0.0,
@@ -44,10 +44,10 @@ def train(
     # Experiment info
     print("TRAIN EXPERIMENT")
     print(f"\tAttention window: {attn_window} (Used if model type is transformer)")
-    print(f"\tUse voice change token: {use_voice_change_token}")
     print(f"\tEpochs: {epochs}")
     print(f"\tPatience: {patience}")
     print(f"\tBatch size: {batch_size}")
+    print(f"\tTrain subset size: {train_subset_size}")
     print(f"\tCheck Val Every N epoch: {check_val_every_n_epoch}")
     print(f"\tlearning rate: {learning_rate}")
     print(f"\tweight decay : {weight_decay}")
@@ -64,8 +64,8 @@ def train(
     datamodule = ARDataModule(
         ds_name=dataset_name,
         ds_location=ds_location,
-        use_voice_change_token=use_voice_change_token,
         batch_size=batch_size,
+        train_subset_size=train_subset_size,
         encoder_name=encoder,
         tokeniser=tokeniser,
     )
@@ -93,12 +93,9 @@ def train(
 
     callbacks = [
         ModelCheckpoint(
-            dirpath=f"weights/{model_type}/{encoder}"
-            if not use_voice_change_token
-            else f"weights/{model_type}-VCT",
+            dirpath=f"weights/{encoder}",
             filename=dataset_name,
             monitor="val_loss",
-            # monitor="val_sym-er",
             verbose=True,
             save_last=False,
             save_top_k=1,
@@ -109,9 +106,8 @@ def train(
             save_on_train_epoch_end=False,
         ),
         EarlyStopping(
-            # monitor="val_sym-er",
             monitor="val_loss",
-            min_delta=0.01,
+            min_delta=0.001,
             patience=patience,
             verbose=True,
             mode="min",
@@ -121,30 +117,28 @@ def train(
             check_on_train_epoch_end=False,
         ),
     ]
+    assert 8 % batch_size == 0 and 8 >= batch_size
+    accumulate_batches = 8 // batch_size
     trainer = Trainer(
         logger=WandbLogger(
             project=PROJECT_NAME,
-            group=f"{model_type} with adamW and prenorm"
-            if not use_voice_change_token
-            else f"{model_type}-VCT",
-            # name=f"Train-{ds_name}_Test-{ds_name}",
+            group=f"{encoder} {dataset_name} {tokeniser}",
             name=f"Train-{encoder}-{dataset_name}",
             log_model=False,
         ),
         callbacks=callbacks,
         max_epochs=epochs,
         check_val_every_n_epoch=check_val_every_n_epoch,
-        deterministic=False,  # If True, raises error saying that CTC loss does not have this behaviour
+        deterministic=False,
         benchmark=False,
         precision="16-mixed",  # Mixed precision training
+        accumulate_grad_batches=accumulate_batches,
     )
     trainer.fit(
         model,
         datamodule=datamodule,
         ckpt_path=resume_from,
     )
-    model = A2STransformer.load_from_checkpoint(callbacks[0].best_model_path)
-    model.freeze()
 
 
 if __name__ == "__main__":

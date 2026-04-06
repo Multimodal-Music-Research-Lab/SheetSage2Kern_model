@@ -4,7 +4,11 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-from my_utils.consts import CNN_ENCODER, MUQ_ENCODER, PREPROCESSED_MUQ_ENCODER
+from my_utils.consts import (
+    CNN_ENCODER,
+    MUQ_ENCODER,
+    PREPROCESSED_MUQ_ENCODER,
+)
 
 MEMORY = joblib.memory.Memory("./joblib_cache", mmap_mode="r", verbose=0)
 NUM_CHANNELS = 1
@@ -56,11 +60,6 @@ def preprocess_audio(
 ################################# CTC PREPROCESSING:
 
 
-# def pad_batch_audios(x, dtype=torch.float32):
-#     max_width = max(x, key=lambda sample: sample.shape[-1]).shape[-1]
-#     x = torch.stack([F.pad(i, pad=(0, max_width - i.shape[-1])) for i in x], dim=0)
-#     x = x.type(dtype=dtype)
-#     return x
 def pad_batch_audios(
     x,
     feature_type,

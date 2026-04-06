@@ -2,30 +2,20 @@ import os
 import shutil
 
 from music21 import converter as converterm21
+from pyMV2H.converter.midi_converter import MidiConverter as Converter
+from pyMV2H.metrics.mv2h import mv2h
+from pyMV2H.utils.music import Music
+from pyMV2H.utils.mv2h import MV2H
 
-from my_utils.tokeniser import untokenize
-
-# from pyMV2H.converter.midi_converter import MidiConverter as Converter
-# from pyMV2H.metrics.mv2h import mv2h
-# from pyMV2H.utils.music import Music
-# from pyMV2H.utils.mv2h import MV2H
-from pyMV2H_with_harmony.converter.midi_converter import (
-    MidiConverter as Converter,
-)
-from pyMV2H_with_harmony.metrics.mv2h import mv2h
-from pyMV2H_with_harmony.utils.music import Music
-from pyMV2H_with_harmony.utils.mv2h import MV2H
-
-VOICE_CHANGE_TOKEN = "<t>"
-STEP_CHANGE_TOKEN = "<n>"
+from .word_level_tokeniser import STEP_CHANGE_TOKEN, VOICE_CHANGE_TOKEN
 
 
 def compute_metrics(y_true, y_pred):
     ################################# Sym-ER and Seq-ER:
     metrics = compute_ed_metrics(y_true=y_true, y_pred=y_pred)
     ################################# MV2H:
-    # mv2h_dict = compute_mv2h_metrics(y_true=y_true, y_pred=y_pred)
-    # metrics.update(mv2h_dict)
+    mv2h_dict = compute_mv2h_metrics(y_true=y_true, y_pred=y_pred)
+    metrics.update(mv2h_dict)
     return metrics
 
 
@@ -123,11 +113,10 @@ def compute_mv2h_metrics(y_true, y_pred):
         num_voices = 0
         for token in kern:
             if token == VOICE_CHANGE_TOKEN:
-                num_voices += 1
-
+                continue
             if token == STEP_CHANGE_TOKEN:
-                num_voices += 1
                 break
+            num_voices += 1
         return num_voices
 
     def divide_voice(in_file, out_file, it_voice):
@@ -160,16 +149,15 @@ def compute_mv2h_metrics(y_true, y_pred):
             reference_file = Music.from_file(reference_txt_file)
             transcription_file = Music.from_file(predicted_txt_file)
             res_dict = MV2H(multi_pitch=0, voice=0, meter=0, harmony=0, note_value=0)
-            # try:
-
-            res_dict = mv2h(reference_file, transcription_file)
-            global_res_dict.__multi_pitch__ += res_dict.multi_pitch
-            global_res_dict.__voice__ += res_dict.voice
-            global_res_dict.__meter__ += res_dict.meter
-            global_res_dict.__harmony__ += res_dict.harmony
-            global_res_dict.__note_value__ += res_dict.note_value
-            # except Exception as e:
-            #     pass
+            try:
+                res_dict = mv2h(reference_file, transcription_file)
+                global_res_dict.__multi_pitch__ += res_dict.multi_pitch
+                global_res_dict.__voice__ += res_dict.voice
+                global_res_dict.__meter__ += res_dict.meter
+                global_res_dict.__harmony__ += res_dict.harmony
+                global_res_dict.__note_value__ += res_dict.note_value
+            except:
+                pass
 
             # Remove auxiliar files
             os.remove(reference_txt_file)
@@ -184,35 +172,26 @@ def compute_mv2h_metrics(y_true, y_pred):
         return global_res_dict
 
     ########################################### MV2H evaluation:
-    def add_padding(kern_string: str, num_voices: int) -> str:
-        rows = kern_string.strip().split("\n")
-        processed_rows = []
-
-        for row in rows:
-            if not row.strip():
-                continue
-
-            columns = row.split("\t")
-            current_len = len(columns)
-
-            if current_len < num_voices:
-                columns.extend(["."] * (num_voices - current_len))
-            elif current_len > num_voices:
-                columns = columns[:num_voices]
-
-            processed_rows.append("\t".join(columns))
-
-        return "\n".join(processed_rows)
 
     def create_kern_file(out_file, kern, num_voices):
         with open(out_file, "w") as fout:
-            if num_voices == 2:
-                fout.write("\n".join(["**kern\t**cdata", "*clefG2\t*clefG2"]))
-                fout.write("\n")
-            kern = untokenize(kern)
-            kern = add_padding(kern, num_voices)
+            # Kern header
+            fout.write("\t".join(["**kern"] * num_voices) + "\n")
 
-            fout.write(kern)
+            # Iterating through the lines
+            line = []
+            for token in kern:
+                if token == STEP_CHANGE_TOKEN:
+                    if len(line) > 0:
+                        if len(line) < num_voices:
+                            line.extend(["."] * (num_voices - len(line)))
+                        fout.write("\t".join(line) + "\n")
+                    line = []
+                else:
+                    if token != "DOT" and token != VOICE_CHANGE_TOKEN:
+                        line.append(token)
+                    else:
+                        line.append(".")
 
     MV2H_global = MV2H(multi_pitch=0, voice=0, meter=0, harmony=0, note_value=0)
     for t, h in zip(y_true, y_pred):
@@ -228,8 +207,16 @@ def compute_mv2h_metrics(y_true, y_pred):
         create_kern_file("pred.krn", h, num_voices)
 
         # Testing whether predicted Kern can be processed as polyphonic
-        assert num_voices == 2
-        res_dict = eval_as_monophonic(1)
+        flag_polyphonic_kern = True
+        try:
+            _ = converterm21.parse("pred.krn").write("midi")
+        except:
+            flag_polyphonic_kern = False
+
+        if flag_polyphonic_kern:
+            res_dict = eval_as_polyphonic()
+        else:
+            res_dict = eval_as_monophonic(num_voices)
 
         # Updating global results
         MV2H_global.__multi_pitch__ += res_dict.multi_pitch

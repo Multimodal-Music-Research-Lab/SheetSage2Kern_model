@@ -1,24 +1,21 @@
-import math
-import random
-
 import torch
-import torch.nn as nn
 from lightning.pytorch import LightningModule
 from torch.nn import CrossEntropyLoss
 from torchinfo import summary
 
 from my_utils.consts import (
     CNN_ENCODER,
-    EOS_TOKEN,
     MUQ_ENCODER,
     PREPROCESSED_MUQ_ENCODER,
-    SOS_TOKEN,
+    PREPROCESSED_MUQ_ENCODER_TEMPORAL_DOWNSAMPLING,
 )
 from my_utils.data_preprocessing import IMG_HEIGHT, NUM_CHANNELS
-from my_utils.metrics import compute_metrics
 from networks.transformer.decoder import Decoder
 from networks.transformer.encoder_modules import CnnEncoder
-from networks.transformer.muq_encoder import MuqEncoder, MuqEncoderPreprocessed
+from networks.transformer.muq_encoder import (
+    MuqEncoder,
+    MuqEncoderPreprocessed,
+)
 
 
 class A2STransformer(LightningModule):
@@ -66,10 +63,15 @@ class A2STransformer(LightningModule):
                 max_encoder_output_length=max_encoder_output_length,
                 max_audio_len=max_audio_len,
             )
-        elif encoder == PREPROCESSED_MUQ_ENCODER:
+        elif (
+            encoder == PREPROCESSED_MUQ_ENCODER
+            or encoder == PREPROCESSED_MUQ_ENCODER_TEMPORAL_DOWNSAMPLING
+        ):
             self.encoder = MuqEncoderPreprocessed(
                 max_encoder_output_length=max_encoder_output_length,
                 max_audio_len=max_audio_len,
+                temporal_downsampling=encoder
+                == PREPROCESSED_MUQ_ENCODER_TEMPORAL_DOWNSAMPLING,
             )
 
         embedding_dim = self.encoder.get_output_dim()
@@ -114,11 +116,6 @@ class A2STransformer(LightningModule):
         )
 
     def configure_optimizers(self):
-        # return torch.optim.Adam(
-        #     list(self.encoder.parameters()) + list(self.decoder.parameters()),
-        #     lr=1e-4,
-        #     amsgrad=False,
-        # )
         return torch.optim.AdamW(
             list(self.encoder.parameters()) + list(self.decoder.parameters()),
             lr=self.lr,
@@ -169,58 +166,7 @@ class A2STransformer(LightningModule):
         loss = self.compute_loss(yhat, y_out)
 
         self.log("val_loss", loss, prog_bar=True, logger=True, on_epoch=True)
-        return  # TODO temp
-        x, y = batch
-        assert x.size(0) == 1, "Inference only supports batch_size = 1"
-
-        # Encoder
-        x = self.encoder(x=x)
-        # Prepare for decoder
-        # 2D PE + flatten + permute
-        x = self.pos_2d(x)
-        x = x.flatten(2).permute(0, 2, 1).contiguous()
-        # Autoregressive decoding
-        y_in = torch.tensor([self.w2i[SOS_TOKEN]]).unsqueeze(0).long().to(x.device)
-        yhat = []
-        for _ in range(self.max_seq_len):
-            y_out_hat = self.decoder(tgt=y_in, memory=x, memory_len=None)
-            y_out_hat = y_out_hat[0, :, -1]  # Last token
-            y_out_hat_token = y_out_hat.argmax(dim=-1).item()
-            y_out_hat_word = self.i2w[y_out_hat_token]
-            yhat.append(y_out_hat_word)
-            if y_out_hat_word == EOS_TOKEN:
-                break
-
-            y_in = torch.cat(
-                [y_in, torch.tensor([[y_out_hat_token]]).long().to(x.device)], dim=1
-            )
-
-        # Decoded ground truth
-        y = [self.ytest_i2w[i.item()] for i in y[0][1:]]  # Remove SOS_TOKEN
-        # Append to later compute metrics
-        self.Y.append(y)
-        self.YHat.append(yhat)
 
     @torch.no_grad()
     def test_step(self, batch, batch_idx):
         return self.validation_step(batch, batch_idx)
-
-    @torch.no_grad()
-    def on_validation_epoch_end(self, name="val", print_random_samples=False):
-        return  # TODO temp
-        metrics = compute_metrics(y_true=self.Y, y_pred=self.YHat)
-        for k, v in metrics.items():
-            self.log(f"{name}_{k}", v, prog_bar=True, logger=True, on_epoch=True)
-        # Print random samples
-        if print_random_samples:
-            index = random.randint(0, len(self.Y) - 1)
-            print(f"Ground truth - {self.Y[index]}")
-            print(f"Prediction - {self.YHat[index]}")
-        # Clear predictions
-        self.Y.clear()
-        self.YHat.clear()
-        return metrics
-
-    @torch.no_grad()
-    def on_test_epoch_end(self):
-        return self.on_validation_epoch_end(name="test", print_random_samples=True)
