@@ -1,3 +1,16 @@
+## Docker setup
+First run the docker container 
+```bash
+sudo -E docker run -it --network host --ipc=host   --rm     - -v  DS_LOCATION:DS_LOCATION a2s-transformer   bash
+```
+Once inside this docker container run 
+```bash
+pip install --upgrade     torch==2.6.0     torchvision==0.21.0     torchaudio==2.6.0     torchcodec==0.2     --index-url https://mirror.sjtu.edu.cn/pytorch-wheels/cu124
+pip install datasets==3.3.0 -i https://pypi.tuna.tsinghua.edu.cn/simple
+export HF_ENDPOINT=https://hf-mirror.com 
+pip install muq
+```
+
 ## Training
 ### Hooktheory-A2S
 To train a model on a dataset:
