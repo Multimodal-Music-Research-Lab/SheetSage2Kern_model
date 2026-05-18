@@ -46,3 +46,18 @@ To obtain metrics on a model for the hooktheory-a2s dataset run
 ```bash
 python run_metrics.py --ds_location DS_LOCATION --checkpoint_path CHECKPOINT_PATH --encoder ENCODER
 ```
+
+## Sampling
+To run inference and view model predictions sample-by-sample:
+
+For the Hooktheory-A2S dataset:
+```bash
+python sample.py --ds_location DS_LOCATION --checkpoint_path CHECKPOINT_PATH --tokeniser word > samples
+```
+
+For the Quartets dataset:
+```bash
+python sample.py --ds_location DS_LOCATION --checkpoint_path CHECKPOINT_PATH --tokeniser original > quartet_samples
+```
+
+This will iterate through the test set, printing ground truth and predicted tokens for each sample along with Verovio Humdrum Viewer links to visualise the output as sheet music. You can use the parameter --number to limit the number of samples printed,
