@@ -61,3 +61,18 @@ python sample.py --ds_location DS_LOCATION --checkpoint_path CHECKPOINT_PATH --t
 ```
 
 This will iterate through the test set, printing ground truth and predicted tokens for each sample along with Verovio Humdrum Viewer links to visualise the output as sheet music. You can use the parameter --number to limit the number of samples printed,
+
+
+## Dataset and checkpoint locations
+#### normal hooktheory with cnn (1024 baseline)
+dataset - /home/eoin/datasets/final_hooktheory   
+checkpoint_path - /workspace/weights/cnn/final_hooktheory-v2.ckpt
+
+#### hooktheory with preprocessed muq
+ds_location - /home/eoin/datasets/final_hooktheory_precomputed_muq/   
+checkpoint_path - /workspace/weights/preprocessed_muq/final_hooktheory_precomputed_muq-v1.ckpt 
+
+
+#### hooktheory with augmentation + preprocessed muq
+ds_location - /home/eoin/datasets/final_augmented_precomputed_muq/   
+checkpoint_path- /workspace/weights/preprocessed_muq/final_augmented_precomputed_muq-v1.ckpt
