@@ -14,7 +14,7 @@ from my_utils.consts import (
     PREPROCESSED_MUQ_ENCODER,
     SOS_TOKEN,
 )
-from my_utils.metrics import compute_metrics
+from my_utils.metrics import compute_metrics, create_kern_file
 from networks.transformer.model import A2STransformer
 from train import PROJECT_NAME
 
@@ -45,6 +45,23 @@ def greedy_decode(
     return yhat
 
 
+def _safe_output_stem(value, idx):
+    if value:
+        return Path(str(value)).stem or f"sample_{idx:06d}"
+    return f"sample_{idx:06d}"
+
+
+def _write_sample_kerns(output_dir, sample_name, y_true, y_pred, num_voices):
+    output_dir = Path(output_dir)
+    true_dir = output_dir / "true"
+    pred_dir = output_dir / "pred"
+    true_dir.mkdir(parents=True, exist_ok=True)
+    pred_dir.mkdir(parents=True, exist_ok=True)
+
+    create_kern_file(true_dir / f"{sample_name}.krn", y_true, num_voices)
+    create_kern_file(pred_dir / f"{sample_name}.krn", y_pred, num_voices)
+
+
 @torch.inference_mode()
 def run_metrics(
     checkpoint_path: str = "",
@@ -53,6 +70,9 @@ def run_metrics(
     max_samples: int = -1,
     print_random_sample: bool = True,
     tokeniser="word",
+    output_dir: str = "",
+    compute_scores: bool = True,
+    save_ground_truth: bool = True,
 ):
     gc.collect()
     torch.cuda.empty_cache()
@@ -76,6 +96,9 @@ def run_metrics(
             "split": "test",
             "max_samples": max_samples,
             "print_random_sample": print_random_sample,
+            "output_dir": output_dir,
+            "compute_scores": compute_scores,
+            "save_ground_truth": save_ground_truth,
         }
     )
 
@@ -124,17 +147,39 @@ def run_metrics(
             end_token=end_token,
         )
 
-        y = [token_ds.i2w[i.item()] for i in y[0]]
-        y_true.append([x for x in y if x not in {SOS_TOKEN, EOS_TOKEN}])
+        y_tokens = [token_ds.i2w[i.item()] for i in y[0]]
+        y_tokens = [x for x in y_tokens if x not in {SOS_TOKEN, EOS_TOKEN}]
         yhat = [token_ds.i2w[t] for t in pred_token_ids]
+        y_true.append(y_tokens)
         y_pred.append(yhat)
-    metrics = compute_metrics(y_true=y_true, y_pred=y_pred)
-    print("\nMETRICS (test)")
-    for key in sorted(metrics.keys()):
-        print(f"{key}: {metrics[key]}")
 
-    wandb_logger.experiment.log(metrics)
-    if print_random_sample:
+        if output_dir:
+            sample_name = _safe_output_stem(fn[0] if fn else "", idx)
+            num_voices = 2 if tokeniser == "original" else 4
+            if save_ground_truth:
+                _write_sample_kerns(
+                    output_dir=output_dir,
+                    sample_name=sample_name,
+                    y_true=y_tokens,
+                    y_pred=yhat,
+                    num_voices=num_voices,
+                )
+            else:
+                pred_dir = Path(output_dir) / "pred"
+                pred_dir.mkdir(parents=True, exist_ok=True)
+                create_kern_file(pred_dir / f"{sample_name}.krn", yhat, num_voices)
+
+    if compute_scores:
+        metrics = compute_metrics(y_true=y_true, y_pred=y_pred)
+        print("\nMETRICS (test)")
+        for key in sorted(metrics.keys()):
+            print(f"{key}: {metrics[key]}")
+
+        wandb_logger.experiment.log(metrics)
+    else:
+        print("\nSkipped metric computation; saved kern outputs only.")
+
+    if print_random_sample and y_true:
         sample_idx = random.randint(0, len(y_true) - 1)
         print("\nRANDOM SAMPLE (split)")
         print(f"index: {sample_idx}")

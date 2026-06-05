@@ -68,6 +68,50 @@ def compute_ed_metrics(y_true, y_pred):
     }
 
 
+def get_number_of_voices(kern):
+    num_voices = 0
+    for token in kern:
+        if token == VOICE_CHANGE_TOKEN:
+            num_voices += 1
+
+        if token == STEP_CHANGE_TOKEN:
+            num_voices += 1
+            break
+    return num_voices
+
+
+def add_padding(kern_string: str, num_voices: int) -> str:
+    rows = kern_string.strip().split("\n")
+    processed_rows = []
+
+    for row in rows:
+        if not row.strip():
+            continue
+
+        columns = row.split("\t")
+        current_len = len(columns)
+
+        if current_len < num_voices:
+            columns.extend(["."] * (num_voices - current_len))
+        elif current_len > num_voices:
+            columns = columns[:num_voices]
+
+        processed_rows.append("\t".join(columns))
+
+    return "\n".join(processed_rows)
+
+
+def create_kern_file(out_file, kern, num_voices):
+    with open(out_file, "w") as fout:
+        if num_voices == 2:
+            fout.write("\n".join(["**kern\t**cdata", "*clefG2\t*clefG2"]))
+            fout.write("\n")
+        kern = untokenize(kern)
+        kern = add_padding(kern, num_voices)
+
+        fout.write(kern)
+
+
 #################################################################### MV2H:
 
 
@@ -118,17 +162,6 @@ def compute_mv2h_metrics(y_true, y_pred):
         return res_dict
 
     ########################################### Monophonic evaluation:
-
-    def get_number_of_voices(kern):
-        num_voices = 0
-        for token in kern:
-            if token == VOICE_CHANGE_TOKEN:
-                num_voices += 1
-
-            if token == STEP_CHANGE_TOKEN:
-                num_voices += 1
-                break
-        return num_voices
 
     def divide_voice(in_file, out_file, it_voice):
         # Open file
@@ -184,36 +217,6 @@ def compute_mv2h_metrics(y_true, y_pred):
         return global_res_dict
 
     ########################################### MV2H evaluation:
-    def add_padding(kern_string: str, num_voices: int) -> str:
-        rows = kern_string.strip().split("\n")
-        processed_rows = []
-
-        for row in rows:
-            if not row.strip():
-                continue
-
-            columns = row.split("\t")
-            current_len = len(columns)
-
-            if current_len < num_voices:
-                columns.extend(["."] * (num_voices - current_len))
-            elif current_len > num_voices:
-                columns = columns[:num_voices]
-
-            processed_rows.append("\t".join(columns))
-
-        return "\n".join(processed_rows)
-
-    def create_kern_file(out_file, kern, num_voices):
-        with open(out_file, "w") as fout:
-            if num_voices == 2:
-                fout.write("\n".join(["**kern\t**cdata", "*clefG2\t*clefG2"]))
-                fout.write("\n")
-            kern = untokenize(kern)
-            kern = add_padding(kern, num_voices)
-
-            fout.write(kern)
-
     MV2H_global = MV2H(multi_pitch=0, voice=0, meter=0, harmony=0, note_value=0)
     for t, h in zip(y_true, y_pred):
         # Get number of voices

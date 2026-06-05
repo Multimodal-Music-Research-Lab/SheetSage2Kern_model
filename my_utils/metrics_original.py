@@ -58,6 +58,38 @@ def compute_ed_metrics(y_true, y_pred):
     }
 
 
+def get_number_of_voices(kern):
+    num_voices = 0
+    for token in kern:
+        if token == VOICE_CHANGE_TOKEN:
+            continue
+        if token == STEP_CHANGE_TOKEN:
+            break
+        num_voices += 1
+    return num_voices
+
+
+def create_kern_file(out_file, kern, num_voices):
+    with open(out_file, "w") as fout:
+        # Kern header
+        fout.write("\t".join(["**kern"] * num_voices) + "\n")
+
+        # Iterating through the lines
+        line = []
+        for token in kern:
+            if token == STEP_CHANGE_TOKEN:
+                if len(line) > 0:
+                    if len(line) < num_voices:
+                        line.extend(["."] * (num_voices - len(line)))
+                    fout.write("\t".join(line) + "\n")
+                line = []
+            else:
+                if token != "DOT" and token != VOICE_CHANGE_TOKEN:
+                    line.append(token)
+                else:
+                    line.append(".")
+
+
 #################################################################### MV2H:
 
 
@@ -108,16 +140,6 @@ def compute_mv2h_metrics(y_true, y_pred):
         return res_dict
 
     ########################################### Monophonic evaluation:
-
-    def get_number_of_voices(kern):
-        num_voices = 0
-        for token in kern:
-            if token == VOICE_CHANGE_TOKEN:
-                continue
-            if token == STEP_CHANGE_TOKEN:
-                break
-            num_voices += 1
-        return num_voices
 
     def divide_voice(in_file, out_file, it_voice):
         # Open file
@@ -172,26 +194,6 @@ def compute_mv2h_metrics(y_true, y_pred):
         return global_res_dict
 
     ########################################### MV2H evaluation:
-
-    def create_kern_file(out_file, kern, num_voices):
-        with open(out_file, "w") as fout:
-            # Kern header
-            fout.write("\t".join(["**kern"] * num_voices) + "\n")
-
-            # Iterating through the lines
-            line = []
-            for token in kern:
-                if token == STEP_CHANGE_TOKEN:
-                    if len(line) > 0:
-                        if len(line) < num_voices:
-                            line.extend(["."] * (num_voices - len(line)))
-                        fout.write("\t".join(line) + "\n")
-                    line = []
-                else:
-                    if token != "DOT" and token != VOICE_CHANGE_TOKEN:
-                        line.append(token)
-                    else:
-                        line.append(".")
 
     MV2H_global = MV2H(multi_pitch=0, voice=0, meter=0, harmony=0, note_value=0)
     for t, h in zip(y_true, y_pred):
