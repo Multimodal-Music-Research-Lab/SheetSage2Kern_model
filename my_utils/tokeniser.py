@@ -1,4 +1,5 @@
 # source - https://github.com/JuanCarlosMartinezSevilla/ISMIR-Jazzmus/blob/main/jazzmus/dataset/tokenizer.py
+from my_utils.consts import CHORD_SPINE, KERN_SPINE, TEXT_SPINE, TEXT_TOKEN_PREFIX
 from my_utils.word_level_tokeniser import krnParser
 
 
@@ -11,6 +12,7 @@ def process_text(lines, tokenizer_type: str = "medium"):
         "!LO",
     }
     piece_started = False
+    spine_layout = None
     tokens = []
 
     for line in lines:
@@ -27,11 +29,16 @@ def process_text(lines, tokenizer_type: str = "medium"):
         if line.startswith("*"):
             piece_started = False
 
+        if KERN_SPINE in line:
+            spine_layout = line.replace("\n", "").split("\t")
+
         # Skip reserved lines
         if any(reserved in line for reserved in reserved_lines):
             continue
         if tokenizer_type == "medium":
-            tokens.extend(middle_level_split(line.replace("\n", ""), piece_started))
+            tokens.extend(
+                middle_level_split(line.replace("\n", ""), piece_started, spine_layout)
+            )
         else:
             line_elements = line.replace("\n", "").split("\t")
 
@@ -52,7 +59,7 @@ def process_text(lines, tokenizer_type: str = "medium"):
     return tokens
 
 
-def middle_level_split(line, piece_started):
+def middle_level_split(line, piece_started, spine_layout=None):
     # handle non note-chord lines
     if not piece_started or "=" in line:
         elements = line.split("\t")
@@ -64,15 +71,21 @@ def middle_level_split(line, piece_started):
             tokens.pop()
         tokens.append("<n>")
     else:
-        # last token from line.split("\t") is the chord, the rest are notes
-        tokens = line.split("\t")
-        if len(tokens) == 1:
+        columns = line.split("\t")
+        if len(columns) == 1:
             # single spline, only notes
-            tokens = note_split(tokens[0])
+            tokens = note_split(columns[0])
+            tokens.append("<n>")
+        elif spine_layout is not None and len(spine_layout) == len(columns):
+            tokens = []
+            for column, spine in zip(columns, spine_layout):
+                tokens.extend(split_column(column, spine))
+                tokens.append("<t>")
+            tokens.pop()
             tokens.append("<n>")
         else:
-            notes = tokens[:-1]
-            chord = tokens[-1]
+            notes = columns[:-1]
+            chord = columns[-1]
             tokens = []
             for note in notes:
                 tokens.extend(note_split(note))
@@ -80,6 +93,20 @@ def middle_level_split(line, piece_started):
             tokens.extend(chord_split(chord))
             tokens.append("<n>")
     return tokens
+
+
+def split_column(column, spine):
+    if spine == CHORD_SPINE:
+        return chord_split(column)
+    if spine == TEXT_SPINE:
+        return text_split(column)
+    return note_split(column)
+
+
+def text_split(text_string):
+    if text_string in [".", "*v", "*^", "*"]:
+        return [text_string]
+    return [TEXT_TOKEN_PREFIX + text_string]
 
 
 def note_split(note_string):
@@ -182,6 +209,7 @@ def untokenize(tokens):
         .replace("<s>", " ")
         .replace("<chord-pitch>", "")
         .replace("<chord-extension>", "")
+        .replace(TEXT_TOKEN_PREFIX, "")
     )
 
 

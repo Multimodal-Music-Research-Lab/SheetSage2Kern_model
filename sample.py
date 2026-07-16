@@ -17,11 +17,19 @@ seed_everything(42, benchmark=False)
 
 def add_more_kern_information(body, comments: list[str], quartets=False):
     comments = ["!! " + c for c in comments]
-    headers = ["**kern\t**cdata", "*clefG2\t*clefG2"]
-    headers = [h for h in headers if h]
-    footer = ["==\t==", "*- \t*-"]
     if quartets:
         return "\n".join(comments + [body])
+
+    body_lines = [line for line in body.split("\n") if line.strip()]
+    num_spines = max((line.count("\t") + 1 for line in body_lines), default=2)
+    assert 2 <= num_spines <= 3
+
+    spine_types = ["**kern"] + ["**cdata"] + ["**text"]
+    spine_types = spine_types[:num_spines]
+    clefs = ["*clefG2"] + ["*"] * (num_spines - 1)
+
+    headers = ["\t".join(spine_types), "\t".join(clefs)]
+    footer = ["\t".join(["=="] * num_spines), "\t".join(["*-"] * num_spines)]
     return "\n".join(comments + headers + [body] + footer)
 
 
@@ -39,7 +47,6 @@ def view_kern_in_browser(kern_data, comments: list[str]):
 
 
 def untokenise_quartets(kern):
-
     out = "\t".join(["**kern"] * 4) + "\n"
     line = []
     for token in kern:
@@ -60,7 +67,6 @@ def untokenise_quartets(kern):
 def test(
     checkpoint_path: str = "", ds_location: str = "", number: int = 0, tokeniser="word"
 ):
-
     if checkpoint_path == "" or not os.path.exists(checkpoint_path):
         print("Invalid checkpoint path.")
         return
