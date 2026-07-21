@@ -10,7 +10,7 @@ from pyMV2H.utils.mv2h import MV2H
 from my_utils.consts import STEP_CHANGE_TOKEN_LEGACY, VOICE_CHANGE_TOKEN_LEGACY
 
 
-def compute_metrics(y_true, y_pred):
+def compute_metrics_legacy(y_true, y_pred):
     ################################# Sym-ER and Seq-ER:
     metrics = compute_ed_metrics(y_true=y_true, y_pred=y_pred)
     ################################# MV2H:

@@ -42,7 +42,6 @@ def view_kern_in_browser(kern_data, comments: list[str]):
 
 
 def untokenise_quartets(kern):
-
     out = "\t".join(["**kern"] * 4) + "\n"
     line = []
     for token in kern:
@@ -67,12 +66,11 @@ def test(
     tokeniser="word",
     encoder_name=PREPROCESSED_MUQ_ENCODER,
 ):
-
     if checkpoint_path == "" or not os.path.exists(checkpoint_path):
         print("Invalid checkpoint path.")
         return
     if tokeniser == "original":
-        from my_utils.metrics_original import compute_metrics
+        from my_utils.metrics_original import compute_metrics_legacy
 
         _untokenise = untokenise_quartets
     else:
@@ -150,7 +148,7 @@ def test(
         print()
         print()
         print()
-        metrics = compute_metrics(y_true=[gt_tokens], y_pred=[pred_tokens])
+        metrics = compute_metrics_legacy(y_true=[gt_tokens], y_pred=[pred_tokens])
         print(metrics)
 
 

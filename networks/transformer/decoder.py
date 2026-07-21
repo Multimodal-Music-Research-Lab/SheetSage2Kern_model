@@ -191,9 +191,6 @@ class Decoder(nn.Module):
                 tgt_sec_len, self.attn_window, device=tgt.device
             )
         else:
-            # tgt_mask = nn.Transformer.generate_square_subsequent_mask(
-            #     tgt_sec_len, tgt.device
-            # )
             tgt_mask = torch.triu(
                 torch.ones(
                     (tgt_sec_len, tgt_sec_len), dtype=torch.bool, device=tgt.device
@@ -205,7 +202,5 @@ class Decoder(nn.Module):
         # Pad token to be ignored by the attention mechanism
         # Value 1 (True) means "ignored" and value 0 (False) means "not ignored"
         # tgt_pad_mask.shape = [batch_size, tgt_sec_len]
-        # tgt_pad_mask = (tgt == 0).to(torch.float32)
-        # tgt_pad_mask = (tgt == 0).to(torch.float32)
         tgt_pad_mask = (tgt == 0).to(torch.bool)
         return tgt_mask, tgt_pad_mask

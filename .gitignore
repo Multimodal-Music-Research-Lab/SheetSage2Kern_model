@@ -403,7 +403,6 @@ joblib_cache
 wandb
 weights
 *.mid
-*.txt
 .vscode
 *.krn
 *.png

@@ -2,6 +2,7 @@ import gc
 import os
 import random
 from pathlib import Path
+from typing import Literal
 
 import fire
 import torch
@@ -9,14 +10,10 @@ from lightning.pytorch.loggers.wandb import WandbLogger
 from tqdm import tqdm
 
 from my_utils.ar_dataset import ARDataModule
-from my_utils.consts import (
-    EOS_TOKEN,
-    PREPROCESSED_MUQ_ENCODER,
-    SOS_TOKEN,
-)
+from my_utils.consts import EOS_TOKEN, PREPROCESSED_MUQ_ENCODER, PROJECT_NAME, SOS_TOKEN
 from my_utils.metrics import compute_metrics
+from my_utils.metrics_original import compute_metrics_legacy
 from networks.transformer.model import A2STransformer
-from train import PROJECT_NAME
 
 
 def greedy_decode(
@@ -53,6 +50,7 @@ def run_metrics(
     max_samples: int = -1,
     print_random_sample: bool = True,
     tokeniser="word",
+    dataset_type: Literal["lead_sheet", "quartets"] = "lead_sheet",
 ):
     gc.collect()
     torch.cuda.empty_cache()
@@ -128,7 +126,11 @@ def run_metrics(
         y_true.append([x for x in y if x not in {SOS_TOKEN, EOS_TOKEN}])
         yhat = [token_ds.i2w[t] for t in pred_token_ids]
         y_pred.append(yhat)
-    metrics = compute_metrics(y_true=y_true, y_pred=y_pred)
+    if dataset_type == "lead_sheet":
+        metrics = compute_metrics(y_true=y_true, y_pred=y_pred)
+    else:
+        metrics = compute_metrics_legacy(y_true=y_true, y_pred=y_pred)
+
     print("\nMETRICS (test)")
     for key in sorted(metrics.keys()):
         print(f"{key}: {metrics[key]}")

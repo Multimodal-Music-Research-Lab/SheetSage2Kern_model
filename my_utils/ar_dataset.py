@@ -218,7 +218,6 @@ class ARDataset(Dataset):
 
     def __getitem__(self, idx):
         if self.encoder_name in PRECOMPUTED_ENCODERS:
-            # x = torch.as_tensor(self.ds[idx]["muq_features"])
             x = torch.as_tensor(self.ds[idx]["features"])
         else:
             x = preprocess_audio(
@@ -347,7 +346,6 @@ class ARDataset(Dataset):
                     max_preprocessed_muq = max(
                         max_preprocessed_muq,
                         sample["length"],
-                        # sample["muq_length"],
                     )
 
                 transcript = self.krn_parser.convert_text(text=sample[KERN_COLUMN])

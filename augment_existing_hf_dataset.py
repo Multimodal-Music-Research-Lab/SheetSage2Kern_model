@@ -82,8 +82,6 @@ def modify_kern_tempo_strict(kern_string, speed_factor):
 
     target_line_idx = 6
 
-    # assert lines[6].count("*MM") == 4 or  lines[6].count("*MM") == 8, kern_string
-
     def replace_match(match):
         original_mm = int(match.group(1))
         new_mm = int(round(original_mm * speed_factor))
@@ -145,11 +143,8 @@ def main():
         )
         ds["train"] = augmented_train
 
-    # print(f"Saving to {OUTPUT_DATASET_PATH}...")
-
     print(f"Saving to {args.output_path}...")
     ds.save_to_disk(args.output_path)
-    # ds.save_to_disk(OUTPUT_DATASET_PATH)
     print("Done.")
 
 

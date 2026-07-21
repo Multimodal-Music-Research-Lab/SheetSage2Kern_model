@@ -57,7 +57,6 @@ def output_path_for_input(input_dataset: str, from_disk: bool, output_dir: str) 
 
     if from_disk:
         return input_path.parent / output_name
-    # return Path("/home/eoin/datasets") / Path(output_name)
     return Path(output_dir) / Path(output_name)
 
 

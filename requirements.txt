@@ -1,0 +1,31 @@
+# --- Core deep learning stack ---
+# torch is pinned to 2.6.0 to stay compatible with torchcodec 0.2
+torch==2.6.0
+torchvision==0.21.0
+torchaudio==2.6.0
+torchcodec==0.2
+lightning
+torchinfo
+
+# --- Data / audio ---
+datasets==3.3.0
+librosa
+soundfile
+music21
+mido
+pretty_midi
+pyrubberband  # needs the `rubberband` CLI (installed via apt in the Dockerfile)
+
+# --- Pretrained audio encoder ---
+muq
+
+# --- Evaluation (MV2H metric) ---
+pyMV2H
+docopt  # used by the vendored pyMV2H_with_harmony CLI
+
+# --- Utilities / experiment tracking ---
+numpy
+joblib
+tqdm
+fire
+wandb
