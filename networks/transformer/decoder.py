@@ -38,6 +38,7 @@ class Decoder(nn.Module):
         nhead: int = 4,
         num_transformer_layers: int = 8,
         attn_window: int = -1,  # -1 means "no limit"
+        use_pre_norm=True,
     ):
         super(Decoder, self).__init__()
 
@@ -62,7 +63,7 @@ class Decoder(nn.Module):
                 dim_feedforward=ff_dim,
                 dropout=dropout_p,
                 batch_first=True,
-                norm_first=True,
+                norm_first=use_pre_norm,
             ),
             num_layers=num_transformer_layers,
         )

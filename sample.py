@@ -9,7 +9,10 @@ from my_utils.ar_dataset import ARDataModule
 from my_utils.consts import PREPROCESSED_MUQ_ENCODER
 from my_utils.seed import seed_everything
 from my_utils.tokeniser import untokenize
-from my_utils.word_level_tokeniser import STEP_CHANGE_TOKEN, VOICE_CHANGE_TOKEN
+from my_utils.word_level_tokeniser import (
+    STEP_CHANGE_TOKEN_LEGACY,
+    VOICE_CHANGE_TOKEN_LEGACY,
+)
 from networks.transformer.model import A2STransformer
 
 seed_everything(42, benchmark=False)
@@ -43,14 +46,14 @@ def untokenise_quartets(kern):
     out = "\t".join(["**kern"] * 4) + "\n"
     line = []
     for token in kern:
-        if token == STEP_CHANGE_TOKEN:
+        if token == STEP_CHANGE_TOKEN_LEGACY:
             if len(line) > 0:
                 if len(line) < 4:
                     line.extend(["."] * (4 - len(line)))
                 out += "\t".join(line) + "\n"
             line = []
         else:
-            if token != "DOT" and token != VOICE_CHANGE_TOKEN:
+            if token != "DOT" and token != VOICE_CHANGE_TOKEN_LEGACY:
                 line.append(token)
             else:
                 line.append(".")
@@ -58,7 +61,11 @@ def untokenise_quartets(kern):
 
 
 def test(
-    checkpoint_path: str = "", ds_location: str = "", number: int = 0, tokeniser="word"
+    checkpoint_path: str = "",
+    ds_location: str = "",
+    number: int = 1,
+    tokeniser="word",
+    encoder_name=PREPROCESSED_MUQ_ENCODER,
 ):
 
     if checkpoint_path == "" or not os.path.exists(checkpoint_path):
@@ -75,7 +82,7 @@ def test(
     print("loading datamodule")
     dataset_name = Path(ds_location).stem
     datamodule = ARDataModule(
-        encoder_name=PREPROCESSED_MUQ_ENCODER,
+        encoder_name=encoder_name,
         num_workers=0,
         batch_size=1,
         ds_name=dataset_name,

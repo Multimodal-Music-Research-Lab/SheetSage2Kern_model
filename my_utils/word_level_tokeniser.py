@@ -3,8 +3,7 @@ from typing import List, Union
 
 import numpy as np
 
-VOICE_CHANGE_TOKEN = "<COC>"
-STEP_CHANGE_TOKEN = "<COR>"
+from my_utils.consts import STEP_CHANGE_TOKEN_LEGACY, VOICE_CHANGE_TOKEN_LEGACY
 
 
 class krnParser:
@@ -14,8 +13,8 @@ class krnParser:
         self.reserved_dot_EncodedCharacter = "."
         self.clef_change_other_voices = "*"
         self.comment_symbols = ["*", "!"]
-        self.voice_change = VOICE_CHANGE_TOKEN  # change-of-column (coc) token
-        self.step_change = STEP_CHANGE_TOKEN  # change-of-row (cor) token
+        self.voice_change = VOICE_CHANGE_TOKEN_LEGACY  # change-of-column (coc) token
+        self.step_change = STEP_CHANGE_TOKEN_LEGACY  # change-of-row (cor) token
         self.use_voice_change_token = use_voice_change_token
 
     # ---------------------------------------------------------------------------- AUXILIARY FUNCTIONS

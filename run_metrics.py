@@ -63,7 +63,7 @@ def run_metrics(
 
     dataset_name = Path(ds_location).stem
     wandb_logger = WandbLogger(
-        project=PROJECT_NAME + "_quartets",
+        project=PROJECT_NAME + "_metrics",
         group=f"{Path(ds_location).stem} {encoder} metrics",
         name=f"Metrics-{encoder}-{dataset_name}",
         log_model=False,

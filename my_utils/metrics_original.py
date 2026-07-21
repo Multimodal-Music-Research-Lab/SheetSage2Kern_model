@@ -7,7 +7,7 @@ from pyMV2H.metrics.mv2h import mv2h
 from pyMV2H.utils.music import Music
 from pyMV2H.utils.mv2h import MV2H
 
-from .word_level_tokeniser import STEP_CHANGE_TOKEN, VOICE_CHANGE_TOKEN
+from my_utils.consts import STEP_CHANGE_TOKEN_LEGACY, VOICE_CHANGE_TOKEN_LEGACY
 
 
 def compute_metrics(y_true, y_pred):
@@ -112,9 +112,9 @@ def compute_mv2h_metrics(y_true, y_pred):
     def get_number_of_voices(kern):
         num_voices = 0
         for token in kern:
-            if token == VOICE_CHANGE_TOKEN:
+            if token == VOICE_CHANGE_TOKEN_LEGACY:
                 continue
-            if token == STEP_CHANGE_TOKEN:
+            if token == STEP_CHANGE_TOKEN_LEGACY:
                 break
             num_voices += 1
         return num_voices
@@ -181,14 +181,14 @@ def compute_mv2h_metrics(y_true, y_pred):
             # Iterating through the lines
             line = []
             for token in kern:
-                if token == STEP_CHANGE_TOKEN:
+                if token == STEP_CHANGE_TOKEN_LEGACY:
                     if len(line) > 0:
                         if len(line) < num_voices:
                             line.extend(["."] * (num_voices - len(line)))
                         fout.write("\t".join(line) + "\n")
                     line = []
                 else:
-                    if token != "DOT" and token != VOICE_CHANGE_TOKEN:
+                    if token != "DOT" and token != VOICE_CHANGE_TOKEN_LEGACY:
                         line.append(token)
                     else:
                         line.append(".")

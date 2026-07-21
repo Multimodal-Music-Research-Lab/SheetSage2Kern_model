@@ -36,6 +36,7 @@ def train(
     resume_from=None,
     label_smoothing=0.0,
     tokeniser=MID_LEVEL_TOKENISER,
+    use_pre_norm=True,
 ):
     gc.collect()
     torch.cuda.empty_cache()
@@ -56,6 +57,7 @@ def train(
     print(f"\tResuming from  : {resume_from}")
     print(f"\tLabel smoothing  : {label_smoothing}")
     print(f"\ttokeniser  : {tokeniser}")
+    print(f"\tUse pre norm  : {use_pre_norm}")
 
     if encoder not in VALID_ENCODERS:
         raise ValueError(encoder)
@@ -87,6 +89,7 @@ def train(
         weight_decay=weight_decay,
         ff_dim_multiplier=ff_dim_multiplier,
         label_smoothing=label_smoothing,
+        use_pre_norm=use_pre_norm,
     )
 
     # Train, validate and test

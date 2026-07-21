@@ -1,20 +1,12 @@
 import os
 import shutil
 
-from music21 import converter as converterm21
+from pyMV2H.converter.midi_converter import MidiConverter as Converter
+from pyMV2H.metrics.mv2h import mv2h
+from pyMV2H.utils.music import Music
+from pyMV2H.utils.mv2h import MV2H
 
 from my_utils.tokeniser import untokenize
-
-# from pyMV2H.converter.midi_converter import MidiConverter as Converter
-# from pyMV2H.metrics.mv2h import mv2h
-# from pyMV2H.utils.music import Music
-# from pyMV2H.utils.mv2h import MV2H
-from pyMV2H_with_harmony.converter.midi_converter import (
-    MidiConverter as Converter,
-)
-from pyMV2H_with_harmony.metrics.mv2h import mv2h
-from pyMV2H_with_harmony.utils.music import Music
-from pyMV2H_with_harmony.utils.mv2h import MV2H
 
 VOICE_CHANGE_TOKEN = "<t>"
 STEP_CHANGE_TOKEN = "<n>"
@@ -24,8 +16,11 @@ def compute_metrics(y_true, y_pred):
     ################################# Sym-ER and Seq-ER:
     metrics = compute_ed_metrics(y_true=y_true, y_pred=y_pred)
     ################################# MV2H:
-    # mv2h_dict = compute_mv2h_metrics(y_true=y_true, y_pred=y_pred)
-    # metrics.update(mv2h_dict)
+    mv2h_dict = compute_mv2h_metrics(y_true=y_true, y_pred=y_pred)
+    metrics.update(mv2h_dict)
+    #### spine split
+    spine_split_sym_ers = compute_separated_spine_metrics(y_true=y_true, y_pred=y_pred)
+    metrics.update(spine_split_sym_ers)
     return metrics
 
 
@@ -72,6 +67,8 @@ def compute_ed_metrics(y_true, y_pred):
 
 
 def compute_mv2h_metrics(y_true, y_pred):
+    from music21 import converter as converterm21
+
     def krn2midi(in_file):
         a = converterm21.parse(in_file).write("midi")
         midi_file = a.name
@@ -255,3 +252,42 @@ def compute_mv2h_metrics(y_true, y_pred):
     }
 
     return mv2h_dict
+
+
+def split_spines_from_tokens(tokens):
+    mel_tokens = []
+    cho_tokens = []
+    current_voice = 0
+
+    for token in tokens:
+        if token == VOICE_CHANGE_TOKEN:
+            current_voice += 1
+        elif token == STEP_CHANGE_TOKEN:
+            current_voice = 0
+        else:
+            if current_voice == 0:
+                mel_tokens.append(token)
+            elif current_voice == 1:
+                cho_tokens.append(token)
+
+    return mel_tokens, cho_tokens
+
+
+def compute_separated_spine_metrics(y_true, y_pred):
+    y_true_mel, y_true_cho = [], []
+    y_pred_mel, y_pred_cho = [], []
+
+    for t in y_true:
+        mel, cho = split_spines_from_tokens(t)
+        y_true_mel.append(mel)
+        y_true_cho.append(cho)
+
+    for h in y_pred:
+        mel, cho = split_spines_from_tokens(h)
+        y_pred_mel.append(mel)
+        y_pred_cho.append(cho)
+
+    return {
+        "melody_sym_er": compute_ed_metrics(y_true_mel, y_pred_mel)["sym-er"],
+        "chords_sym_er": compute_ed_metrics(y_true_cho, y_pred_cho)["sym-er"],
+    }

@@ -7,7 +7,7 @@ import torch
 from datasets import load_dataset, load_from_disk
 from muq import MuQ
 
-DEVICE = "cuda:0"
+DEVICE = "cuda"
 SUFFIX = "precomputed_muq"
 
 

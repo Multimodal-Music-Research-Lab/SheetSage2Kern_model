@@ -34,6 +34,7 @@ class A2STransformer(LightningModule):
         weight_decay=0.0,
         ff_dim_multiplier=1,
         label_smoothing=0.0,
+        use_pre_norm=True,
     ):
         super(A2STransformer, self).__init__()
         # Save hyperparameters
@@ -83,6 +84,7 @@ class A2STransformer(LightningModule):
             attn_window=attn_window,
             embedding_dim=embedding_dim,
             ff_dim=embedding_dim * ff_dim_multiplier,
+            use_pre_norm=use_pre_norm,
         )
         self.summary()
         # Loss
