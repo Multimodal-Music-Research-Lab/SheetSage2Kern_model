@@ -21,7 +21,6 @@ muq
 
 # --- Evaluation (MV2H metric) ---
 pyMV2H
-docopt  # used by the vendored pyMV2H_with_harmony CLI
 
 # --- Utilities / experiment tracking ---
 numpy

@@ -10,7 +10,6 @@ import pyrubberband as pyrb
 from datasets import load_dataset
 
 SEED = 67
-OUTPUT_DATASET_PATH = "/home/eoin/datasets/quartets_augmented_6x"
 
 TRANSPOSITIONS = [-3, -2, -1, 1, 2, 3]
 SPEEDS = [0.9, 0.95, 1, 1.05, 1.1]

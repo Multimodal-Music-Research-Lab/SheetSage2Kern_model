@@ -1,4 +1,5 @@
 import os
+import re
 import shutil
 
 from pyMV2H.converter.midi_converter import MidiConverter as Converter
@@ -11,6 +12,16 @@ from my_utils.tokeniser import untokenize
 VOICE_CHANGE_TOKEN = "<t>"
 STEP_CHANGE_TOKEN = "<n>"
 
+TONIC_RE = re.compile(r"^\*[A-Ga-g][#n-]*:$")
+
+
+def is_key_token(token: str) -> bool:
+    return token.startswith("*k[") or TONIC_RE.match(token) is not None
+
+
+def is_meter_token(token: str) -> bool:
+    return token.startswith("*M") and not token.startswith("*MM")
+
 
 def compute_metrics(y_true, y_pred):
     ################################# Sym-ER and Seq-ER:
@@ -21,6 +32,8 @@ def compute_metrics(y_true, y_pred):
     #### spine split
     spine_split_sym_ers = compute_separated_spine_metrics(y_true=y_true, y_pred=y_pred)
     metrics.update(spine_split_sym_ers)
+    signature_sym_ers = compute_signature_metrics(y_true=y_true, y_pred=y_pred)
+    metrics.update(signature_sym_ers)
     return metrics
 
 
@@ -290,4 +303,24 @@ def compute_separated_spine_metrics(y_true, y_pred):
     return {
         "melody_sym_er": compute_ed_metrics(y_true_mel, y_pred_mel)["sym-er"],
         "chords_sym_er": compute_ed_metrics(y_true_cho, y_pred_cho)["sym-er"],
+    }
+
+
+def _safe_sym_er(y_true, y_pred):
+    if sum(len(t) for t in y_true) == 0:
+        return 0.0
+    return compute_ed_metrics(y_true, y_pred)["sym-er"]
+
+
+def compute_signature_metrics(y_true, y_pred):
+    def keep(seqs, predicate):
+        return [[tok for tok in seq if predicate(tok)] for seq in seqs]
+
+    return {
+        "key_sym_er": _safe_sym_er(
+            keep(y_true, is_key_token), keep(y_pred, is_key_token)
+        ),
+        "time_sig_sym_er": _safe_sym_er(
+            keep(y_true, is_meter_token), keep(y_pred, is_meter_token)
+        ),
     }

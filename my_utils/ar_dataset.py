@@ -115,8 +115,8 @@ class ARDataModule(LightningDataModule):
             batch_size=1,
             shuffle=False,
             num_workers=self.num_workers,
-            collate_fn=collate_fn,  # TODO temp
-        )  # prefetch_factor=2
+            collate_fn=collate_fn,
+        )
 
     def test_dataloader(self):
         return DataLoader(
@@ -124,7 +124,7 @@ class ARDataModule(LightningDataModule):
             batch_size=1,
             shuffle=False,
             num_workers=self.num_workers,
-        )  # prefetch_factor=2
+        )
 
     def predict_dataloader(self):
         print("Using test_dataloader for predictions.")

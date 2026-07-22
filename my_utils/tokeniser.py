@@ -15,8 +15,7 @@ def process_text(lines, tokenizer_type: str = "medium"):
 
     for line in lines:
         # remove the X character as it does not have graphical impact
-        # TODO remove this and modify the dataset
-        line = line.replace("X", "")  # TODO i dont think this is needed
+        line = line.replace("X", "")
         if (
             line[0].isdigit() or "=" in line
         ):  # piece started  means real music if it is false reading header
@@ -118,7 +117,6 @@ def chord_split(chord_string):
 
         bass = chord_string.split("/")[1] if "/" in chord_string else "none"
         if len(chord_string.split(":")) == 1:  # chord without any extension
-            # TODO : remove this when the new dataset is ready
             chord_type = "none"
         else:
             chord_type = (
@@ -201,6 +199,6 @@ class GtParser:
             return process_text(lines, self.tokenizer_type)
 
     def convert_text(self, text: str):
-        lines = text.splitlines()  # TODO temp
+        lines = text.splitlines()
 
         return process_text(lines, self.tokenizer_type)

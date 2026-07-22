@@ -51,7 +51,7 @@ class MuqEncoder(AudioEncoderBase):
         with torch.no_grad():
             with torch.autocast(
                 device_type="cuda",
-                enabled=False,  # TODO
+                enabled=False,
             ):  # 16 bit precision causes nan errors
                 x = x.to(torch.float32)
                 x = self.muq(x, output_hidden_states=False).last_hidden_state
