@@ -185,11 +185,17 @@ higher is better for MV2H.
 
 Datasets and model checkpoints are hosted on the Hugging Face Hub. 
 
-TODO update
+https://huggingface.co/collections/MMR-Lab/sheetsage-a2s
+
+> **Note:** if `huggingface.co` is unreachable,
+> set the mirror endpoint before downloading:
+>
+> ```bash
+> export HF_ENDPOINT=https://hf-mirror.com
+> ```
 ## License
 
 The code in this repository is released under the MIT license as found in the [LICENSE](LICENSE) file.
-
 
 ## Citation
 
