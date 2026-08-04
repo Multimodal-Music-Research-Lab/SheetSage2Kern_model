@@ -15,8 +15,16 @@ STEP_CHANGE_TOKEN = "<n>"
 TONIC_RE = re.compile(r"^\*[A-Ga-g][#n-]*:$")
 
 
+def is_keysig_token(token: str) -> bool:
+    return token.startswith("*k[")
+
+
+def is_tonic_token(token: str) -> bool:
+    return TONIC_RE.match(token) is not None
+
+
 def is_key_token(token: str) -> bool:
-    return token.startswith("*k[") or TONIC_RE.match(token) is not None
+    return is_keysig_token(token) or is_tonic_token(token)
 
 
 def is_meter_token(token: str) -> bool:
@@ -319,6 +327,12 @@ def compute_signature_metrics(y_true, y_pred):
     return {
         "key_sym_er": _safe_sym_er(
             keep(y_true, is_key_token), keep(y_pred, is_key_token)
+        ),
+        "keysig_sym_er": _safe_sym_er(
+            keep(y_true, is_keysig_token), keep(y_pred, is_keysig_token)
+        ),
+        "tonic_sym_er": _safe_sym_er(
+            keep(y_true, is_tonic_token), keep(y_pred, is_tonic_token)
         ),
         "time_sig_sym_er": _safe_sym_er(
             keep(y_true, is_meter_token), keep(y_pred, is_meter_token)
