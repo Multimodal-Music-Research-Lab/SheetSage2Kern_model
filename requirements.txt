@@ -9,6 +9,7 @@ torchinfo
 
 # --- Data / audio ---
 datasets==3.3.0
+huggingface_hub
 librosa
 soundfile
 music21

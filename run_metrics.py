@@ -1,5 +1,4 @@
 import gc
-import os
 import random
 from pathlib import Path
 from typing import Literal
@@ -10,6 +9,7 @@ from lightning.pytorch.loggers.wandb import WandbLogger
 from tqdm import tqdm
 
 from my_utils.ar_dataset import ARDataModule
+from my_utils.checkpoints import resolve_checkpoint
 from my_utils.consts import EOS_TOKEN, PREPROCESSED_MUQ_ENCODER, PROJECT_NAME, SOS_TOKEN
 from my_utils.metrics import compute_metrics
 from my_utils.metrics_original import compute_metrics_legacy
@@ -51,12 +51,15 @@ def run_metrics(
     print_random_sample: bool = True,
     tokeniser="word",
     dataset_type: Literal["lead_sheet", "quartets"] = "lead_sheet",
+    strip_headers: bool = True,
 ):
     gc.collect()
     torch.cuda.empty_cache()
 
-    if checkpoint_path == "" or not os.path.exists(checkpoint_path):
-        print(f"Invalid checkpoint path: {checkpoint_path}")
+    try:
+        checkpoint_path = resolve_checkpoint(checkpoint_path)
+    except OSError as e:
+        print(f"Could not resolve checkpoint '{checkpoint_path}': {e}")
         return
 
     dataset_name = Path(ds_location).stem
@@ -74,6 +77,7 @@ def run_metrics(
             "split": "test",
             "max_samples": max_samples,
             "print_random_sample": print_random_sample,
+            "strip_headers": strip_headers,
         }
     )
 
@@ -84,6 +88,7 @@ def run_metrics(
         encoder_name=encoder,
         tokeniser=tokeniser,
         num_workers=1,
+        strip_headers=strip_headers,
     )
 
     datamodule.setup(stage="test")

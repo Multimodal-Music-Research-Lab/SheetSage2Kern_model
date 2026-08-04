@@ -27,6 +27,7 @@ from my_utils.data_preprocessing import (
     preprocess_audio,
     set_pad_index,
 )
+from my_utils.kern_headers import strip_kern_headers
 from my_utils.tokeniser import GtParser
 from my_utils.word_level_tokeniser import krnParser
 from networks.transformer.encoder import HEIGHT_REDUCTION, WIDTH_REDUCTION
@@ -46,6 +47,7 @@ class ARDataModule(LightningDataModule):
         num_workers: int = 20,
         encoder_name=CNN_ENCODER,
         tokeniser=MID_LEVEL_TOKENISER,
+        strip_headers: bool = True,
     ):
         super(ARDataModule, self).__init__()
         self.ds_location = ds_location
@@ -54,6 +56,7 @@ class ARDataModule(LightningDataModule):
         self.train_subset_size = train_subset_size
         self.num_workers = num_workers
         self.tokeniser = tokeniser
+        self.strip_headers = strip_headers
 
         # Datasets
         # To prevent executing setup() twice
@@ -72,6 +75,7 @@ class ARDataModule(LightningDataModule):
                     partition_type="train",
                     encoder_name=self.encoder_name,
                     tokeniser=self.tokeniser,
+                    strip_headers=self.strip_headers,
                 )
                 if self.train_subset_size is not None:
                     subset_size = min(self.train_subset_size, len(self.train_ds.ds))
@@ -86,6 +90,7 @@ class ARDataModule(LightningDataModule):
                         partition_type=VALIDATION_SPLIT,
                         encoder_name=self.encoder_name,
                         tokeniser=self.tokeniser,
+                        strip_headers=self.strip_headers,
                     )
 
         if stage == "test" or stage == "predict":
@@ -96,6 +101,7 @@ class ARDataModule(LightningDataModule):
                     partition_type="test",
                     encoder_name=self.encoder_name,
                     tokeniser=self.tokeniser,
+                    strip_headers=self.strip_headers,
                 )
 
     def train_dataloader(self):
@@ -163,12 +169,14 @@ class ARDataset(Dataset):
         partition_type: str,
         encoder_name=CNN_ENCODER,
         tokeniser=MID_LEVEL_TOKENISER,
+        strip_headers: bool = True,
     ):
         self.ds_name = ds_name.lower()
         self.tokeniser = tokeniser
         self.ds_location = ds_location
         self.partition_type = partition_type
         self.encoder_name = encoder_name
+        self.strip_headers = strip_headers
         self.init(vocab_name="ar_w2i")
         self.max_seq_len += 1  # Add 1 for EOS_TOKEN
 
@@ -237,8 +245,11 @@ class ARDataset(Dataset):
         except:
             return x, y, ""
 
+    def read_transcript(self, text: str) -> str:
+        return strip_kern_headers(text) if self.strip_headers else text
+
     def preprocess_transcript(self, text: str):
-        y = self.krn_parser.convert_text(text=text)
+        y = self.krn_parser.convert_text(text=self.read_transcript(text))
         y = [SOS_TOKEN] + y + [EOS_TOKEN]
         y = [self.w2i[w] for w in y]
 
@@ -252,7 +263,9 @@ class ARDataset(Dataset):
         vocab = []
         for split in SPLITS:
             for text in full_ds[split][KERN_COLUMN]:
-                transcript = self.krn_parser.convert_text(text=text)
+                transcript = self.krn_parser.convert_text(
+                    text=self.read_transcript(text)
+                )
                 vocab.extend(transcript)
         vocab = [SOS_TOKEN, EOS_TOKEN] + vocab
         vocab = sorted(set(vocab))
@@ -348,7 +361,9 @@ class ARDataset(Dataset):
                         sample["length"],
                     )
 
-                transcript = self.krn_parser.convert_text(text=sample[KERN_COLUMN])
+                transcript = self.krn_parser.convert_text(
+                    text=self.read_transcript(sample[KERN_COLUMN])
+                )
                 max_seq_len = max(max_seq_len, len(transcript))
 
         MAX_OUTPUT_LEN = {

@@ -36,6 +36,7 @@ def train(
     label_smoothing=0.0,
     tokeniser=MID_LEVEL_TOKENISER,
     use_pre_norm=True,
+    strip_headers: bool = True,
 ):
     gc.collect()
     torch.cuda.empty_cache()
@@ -57,6 +58,7 @@ def train(
     print(f"\tLabel smoothing  : {label_smoothing}")
     print(f"\ttokeniser  : {tokeniser}")
     print(f"\tUse pre norm  : {use_pre_norm}")
+    print(f"\tStrip kern headers  : {strip_headers}")
 
     if encoder not in VALID_ENCODERS:
         raise ValueError(encoder)
@@ -69,6 +71,7 @@ def train(
         train_subset_size=train_subset_size,
         encoder_name=encoder,
         tokeniser=tokeniser,
+        strip_headers=strip_headers,
     )
 
     datamodule.setup(stage="fit")

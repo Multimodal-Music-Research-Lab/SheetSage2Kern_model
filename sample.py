@@ -1,12 +1,13 @@
 import base64
-import os
 from pathlib import Path
 
 import fire
 import torch
 
 from my_utils.ar_dataset import ARDataModule
+from my_utils.checkpoints import resolve_checkpoint
 from my_utils.consts import PREPROCESSED_MUQ_ENCODER
+from my_utils.kern_headers import FOOTER, HEADERS
 from my_utils.seed import seed_everything
 from my_utils.tokeniser import untokenize
 from my_utils.word_level_tokeniser import (
@@ -20,12 +21,9 @@ seed_everything(42, benchmark=False)
 
 def add_more_kern_information(body, comments: list[str], quartets=False):
     comments = ["!! " + c for c in comments]
-    headers = ["**kern\t**cdata", "*clefG2\t*clefG2"]
-    headers = [h for h in headers if h]
-    footer = ["==\t==", "*- \t*-"]
     if quartets:
         return "\n".join(comments + [body])
-    return "\n".join(comments + headers + [body] + footer)
+    return "\n".join(comments + HEADERS + [body] + FOOTER)
 
 
 def view_kern_in_browser(kern_data, comments: list[str]):
@@ -65,9 +63,12 @@ def test(
     number: int = 1,
     tokeniser="word",
     encoder_name=PREPROCESSED_MUQ_ENCODER,
+    strip_headers: bool = True,
 ):
-    if checkpoint_path == "" or not os.path.exists(checkpoint_path):
-        print("Invalid checkpoint path.")
+    try:
+        checkpoint_path = resolve_checkpoint(checkpoint_path)
+    except OSError as e:
+        print(f"Could not resolve checkpoint '{checkpoint_path}': {e}")
         return
     if tokeniser == "original":
         from my_utils.metrics_original import compute_metrics_legacy
@@ -86,6 +87,7 @@ def test(
         ds_name=dataset_name,
         ds_location=ds_location,
         tokeniser=tokeniser,
+        strip_headers=strip_headers,
     )
     datamodule.setup(stage="test")
     ytest_i2w = datamodule.test_ds.i2w
