@@ -9,7 +9,7 @@
 </div>
 
 
-This is the official repository for the paper *"**Audio-to-Score Transcription using Pre-trained Features, Data Augmentation, and the New Hooktheory-A2S Dataset**"*.
+This is the official repository for the paper *"**Audio-to-Score Transcription using Pre-trained Features, Data Augmentation, and the New SheetSage-A2S Dataset**"*.
 
 In this repo, the following are released:
 
