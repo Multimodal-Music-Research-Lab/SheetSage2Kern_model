@@ -20,9 +20,9 @@ In this repo, the following are released:
 
 ## Overview
 
-We introduce **Hooktheory-A2S**, the first audio-to-score (A2S) dataset for popular music: 61 hours of real, commercially released audio paired with `**kern` lead-sheet encodings across 6,066 songs. Unlike existing A2S datasets, which rely on synthetic recordings of Western classical music, Hooktheory-A2S is built from real audio and isolates the sung melody together with its chords.
+We introduce **SheetSage-A2S**, the first audio-to-score (A2S) dataset for popular music: 61 hours of real, commercially released audio paired with `**kern` lead-sheet encodings across 6,066 songs. Unlike existing A2S datasets, which rely on synthetic recordings of Western classical music, SheetSage-A2S is built from real audio and isolates the sung melody together with its chords.
 
-We also propose an **A2S model** that improves on prior work with three changes to an autoregressive transformer decoder: a larger ff dim, pre-norm decoder, using [MuQ](https://github.com/tencent-ailab/MuQ) as an encoder in place of the CNN, and pitch/tempo data augmentation. The model reaches 4.98% symbol error rate on the classical Quartets collection and sets a 20.92% benchmark on Hooktheory-A2S.
+We also propose an **A2S model** that improves on prior work with three changes to an autoregressive transformer decoder: a larger ff dim, pre-norm decoder, using [MuQ](https://github.com/tencent-ailab/MuQ) as an encoder in place of the CNN, and pitch/tempo data augmentation. The model reaches 4.98% symbol error rate on the classical Quartets collection and sets a 20.92% benchmark on SheetSage-A2S.
 
 For more details, please refer to our [paper](#).
 
@@ -69,7 +69,7 @@ the Hub instead (in which case `--output-dir` is required).
 
 ### 2. Train
 
-Hooktheory-A2S (lead sheets) with the precomputed-MuQ encoder:
+SheetSage-A2S (lead sheets) with the precomputed-MuQ encoder:
 
 ```bash
 python train.py \
@@ -113,7 +113,7 @@ Valid **tokenisers**: `word`, `medium`, `original`.
 Compute metrics (Sym-ER, MV2H) on the test set.
 
 ```bash
-# Lead sheets (Hooktheory-A2S)
+# Lead sheets (SheetSage-A2S)
 python run_metrics.py \
     --checkpoint_path /path/to/checkpoint.ckpt \
     --ds_location /path/to/dataset \
@@ -156,20 +156,20 @@ python augment_existing_hf_dataset.py --output-path /path/to/augmented
 
 ## Performance
 
-Model performance on the Hooktheory-A2S and Quartets datasets using the word-level tokenisation
+Model performance on the SheetSage-A2S and Quartets datasets using the word-level tokenisation
 scheme.
 ### SER (overall)
 
-| Method | Hooktheory-A2S | Quartets |
+| Method | SheetSage-A2S | Quartets |
 | ------ | :------------: | :------: |
 | Baseline | 66.85 | 15.3 |
 | + 1024 Pre-Norm | 53.7 | 8.48 |
 | + MuQ encoder | 25.39 | 7.16 |
 | + Augmented data | **20.92** | **4.98** |
 
-### Per-spine SER and MV2H (Hooktheory-A2S)
+### Per-spine SER and MV2H (SheetSage-A2S)
 
-Per-spine SER (melody and chord spines) and MV2H on Hooktheory-A2S. Lower is better for SER;
+Per-spine SER (melody and chord spines) and MV2H on SheetSage-A2S. Lower is better for SER;
 higher is better for MV2H.
 
 | Variant | Normal SER | Melody SER | Chord SER | MV2H |
