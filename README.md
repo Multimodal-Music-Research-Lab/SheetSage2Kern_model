@@ -31,6 +31,54 @@ For more details, please refer to our [paper](#).
   <!-- <img src="images/results.png" width="45%" alt="Qualitative results"> -->
 </div>
 
+## Datasets & Checkpoints
+
+Datasets and model checkpoints are hosted on the Hugging Face Hub:
+
+https://huggingface.co/collections/MMR-Lab/sheetsage-a2s
+
+
+> **Note:** if `huggingface.co` is unreachable, set the mirror endpoint before downloading:
+>
+> ```bash
+> export HF_ENDPOINT=https://hf-mirror.com
+> ```
+
+### Different datasets
+
+Hooktheory-A2S is published in two forms. They contain the same songs and the same
+train/val/test splits. 
+https://huggingface.co/datasets/MMR-Lab/Sheetsage-A2S contains the kern scores along with the youtube links and timestamps.
+https://huggingface.co/datasets/MMR-Lab/Sheetsage-A2S-MuQ contains the dataset with Muq Preprocessed features as well as kern scores.
+
+### Getting the data
+
+Every script that takes `--ds_location` accepts either a local path or a Hub dataset id.
+
+```bash
+python train.py --ds_location MMR-Lab/MMR-Lab/Sheetsage-A2S-MuQ --encoder preprocessed_muq ...
+```
+
+To download once up front instead.
+
+```bash
+hf download MMR-Lab/<hooktheory-a2s-muq> \
+    --repo-type dataset \
+    --local-dir /path/to/data/hooktheory-a2s-muq
+
+### Getting the checkpoints
+
+```bash
+hf download MMR-Lab/<checkpoints> <name>.ckpt --local-dir weights/preprocessed_muq
+```
+
+`--checkpoint_path` also accepts a Hub id in the form
+`org/repo/<name>.ckpt` and fetches it into the local Hugging Face cache.
+
+```bash
+python run_metrics.py --checkpoint_path MMR-Lab/<checkpoints>/<name>.ckpt ...
+```
+
 ## Usage
 
 ### Installation
@@ -39,7 +87,9 @@ For more details, please refer to our [paper](#).
 
 ```bash
 docker build -t hookkern .
-docker run -it --gpus all --ipc=host -v /path/to/data:/path/to/data hookkern bash
+docker run -it --gpus all --ipc=host \
+    -v /path/to/data:/data \
+    hookkern bash
 ```
 
 **Option B — pip.** Requires `python>=3.11`, a CUDA-capable GPU, and the system packages
@@ -53,14 +103,13 @@ pip install -r requirements.txt
 ### 1. Preprocess audio into MuQ features (optional)
 
 Precompute MuQ features so training does not run the (frozen) MuQ encoder every step.
-Required for the `preprocessed_muq` encoders.
+Required for the `preprocessed_muq` encoders. If you want to do this for the Sheetsage-A2S dataset please note that we release the already preprocessed MuQ features for this dataset.
+
 
 ```bash
 python preprocess_muq.py --input-dataset /path/to/dataset --output-dir /path/to/output
 ```
 
-By default the input is read with `load_from_disk`. Use `--no-from-disk` to pull a dataset from
-the Hub instead (in which case `--output-dir` is required).
 
 > **Note:** MuQ features are always extracted in 32-bit precision. Although training otherwise
 > runs in 16-bit mixed precision, MuQ is executed with autocasting disabled both here and
@@ -73,7 +122,7 @@ SheetSage-A2S (lead sheets) with the precomputed-MuQ encoder:
 
 ```bash
 python train.py \
-    --ds_location /path/to/dataset \
+    --ds_location MMR-Lab/Sheetsage-A2S-MuQ \
     --encoder preprocessed_muq \
     --tokeniser word \
     --batch_size 8 \
@@ -84,7 +133,8 @@ python train.py \
     --patience 5
 ```
 
-To use the raw-spectrogram CNN encoder instead, pass `--encoder cnn` (no preprocessing needed).
+
+To use the raw-spectrogram CNN encoder instead, pass `--encoder cnn` 
 
 For the **Quartets** dataset, use `--tokeniser original` (this applies the cleaning from
 the original quartets paper together with word-level tokenisation):
@@ -106,17 +156,19 @@ python train.py \
 > `weights/<encoder>/` and training is logged to Weights & Biases (`wandb login`, or set
 > `WANDB_MODE=offline`).
 
-Valid **encoders**: `cnn`, `muq`, `preprocessed_muq`,
+Valid **encoders**: `cnn`, `muq`, `preprocessed_muq`.
 Valid **tokenisers**: `word`, `medium`, `original`.
+
 ### 3. Evaluate
 
-Compute metrics (Sym-ER, MV2H) on the test set.
+Compute metrics (Sym-ER, MV2H) on the test set. Both `--checkpoint_path` and `--ds_location`
+accept a local path or a Hub id.
 
 ```bash
 # Lead sheets (SheetSage-A2S)
 python run_metrics.py \
-    --checkpoint_path /path/to/checkpoint.ckpt \
-    --ds_location /path/to/dataset \
+    --checkpoint_path MMR-Lab/Sheetsage-A2S-model\
+    --ds_location MMR-Lab/Sheetsage-A2S-MuQ \
     --encoder preprocessed_muq \
     --tokeniser word \
     --dataset_type lead_sheet
@@ -137,8 +189,8 @@ Run inference sample-by-sample, printing ground-truth and predicted tokens toget
 
 ```bash
 python sample.py \
-    --checkpoint_path /path/to/checkpoint.ckpt \
-    --ds_location /path/to/dataset \
+    --checkpoint_path MMR-Lab/Sheetsage-A2S-model \
+    --ds_location MMR-Lab/Sheetsage-A2S-MuQ \
     --tokeniser word \
     --number 5
 ```
@@ -180,19 +232,6 @@ higher is better for MV2H.
 | + Augmented | **20.92** | **38.62** | **22.28** | **85.05** |
 
 
-
-## Datasets & Checkpoints
-
-Datasets and model checkpoints are hosted on the Hugging Face Hub. 
-
-https://huggingface.co/collections/MMR-Lab/sheetsage-a2s
-
-> **Note:** if `huggingface.co` is unreachable,
-> set the mirror endpoint before downloading:
->
-> ```bash
-> export HF_ENDPOINT=https://hf-mirror.com
-> ```
 ## License
 
 The code in this repository is released under the MIT license as found in the [LICENSE](LICENSE) file.
