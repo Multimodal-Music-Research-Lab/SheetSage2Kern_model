@@ -1,4 +1,4 @@
-# HookKern
+# Sheetsage-A2S
 
 <div>
   <a href='#'><img alt="Static Badge" src="https://img.shields.io/badge/Python-3.11%2B-blue?logo=python&logoColor=white"></a>
@@ -240,11 +240,11 @@ The code in this repository is released under the MIT license as found in the [L
 
 
 ```
-@article{TODO,
-      title={TODO: paper title},
-      author={TODO},
-      journal={TODO},
-      year={2026}
+@article{cummins2026audio,
+  title={Audio-to-Score Transcription using Pre-trained Features, Data Augmentation, and the New SheetSage-A2S Dataset},
+  author={Cummins, Eoin and Huang, Zhongyi and D'Hooge, Alexandre and Mo, Zhuoro and Ju, Yaolong},
+  journal={arXiv preprint arXiv:2608.06165},
+  year={2026}
 }
 ```
 
