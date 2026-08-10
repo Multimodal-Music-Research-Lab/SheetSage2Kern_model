@@ -46,7 +46,7 @@ https://huggingface.co/collections/MMR-Lab/sheetsage-a2s
 
 ### Different datasets
 
-Hooktheory-A2S is published in two forms. They contain the same songs and the same
+SheetSage-A2S is published in two forms. They contain the same songs and the same
 train/val/test splits. 
 https://huggingface.co/datasets/MMR-Lab/Sheetsage-A2S contains the kern scores along with the youtube links and timestamps.
 https://huggingface.co/datasets/MMR-Lab/Sheetsage-A2S-MuQ contains the dataset with Muq Preprocessed features as well as kern scores.
@@ -62,9 +62,9 @@ python train.py --ds_location MMR-Lab/MMR-Lab/Sheetsage-A2S-MuQ --encoder prepro
 To download once up front instead.
 
 ```bash
-hf download MMR-Lab/<hooktheory-a2s-muq> \
+hf download MMR-Lab/<SheetSage-a2s-muq> \
     --repo-type dataset \
-    --local-dir /path/to/data/hooktheory-a2s-muq
+    --local-dir /path/to/data/SheetSage-a2s-muq
 
 ### Getting the checkpoints
 
