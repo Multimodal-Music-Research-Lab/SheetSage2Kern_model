@@ -2,7 +2,7 @@
 
 <div>
   <a href='#'><img alt="Static Badge" src="https://img.shields.io/badge/Python-3.11%2B-blue?logo=python&logoColor=white"></a>
-  <a href='#'><img alt="Static Badge" src="https://img.shields.io/badge/arXiv-XXXX.XXXXX-%23b31b1b?logo=arxiv&link=https%3A%2F%2Farxiv.org%2F"></a>
+  <a href='#'><img alt="Static Badge" src="https://img.shields.io/badge/arXiv-2608.06165-%23b31b1b?logo=arxiv&link=https%3A%2F%2Farxiv.org%2F"></a>
   <a href='#'><img alt="Static Badge" src="https://img.shields.io/badge/huggingface-HookKern-%23FFD21E?logo=huggingface&link=https%3A%2F%2Fhuggingface.co%2F"></a>
   <a href='https://pytorch.org/'><img alt="Static Badge" src="https://img.shields.io/badge/framework-PyTorch-%23EE4C2C?logo=pytorch"></a>
   <a href='LICENSE'><img alt="Static Badge" src="https://img.shields.io/badge/license-MIT-green"></a>
