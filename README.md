@@ -9,7 +9,7 @@
 </div>
 
 
-This is the official repository for the paper *"**Audio-to-Score Transcription using Pre-trained Features, Data Augmentation, and the New SheetSage-A2S Dataset**"*.
+This is the official repository for the paper *"**Audio-to-Score Transcription using Pre-trained Features, Data Augmentation, and the New SheetSage-A2S Dataset**"*, which has recently been accepted by ACMMM 2026.
 
 In this repo, the following are released:
 
@@ -33,9 +33,7 @@ For more details, please refer to our [paper](#).
 
 ## Datasets & Checkpoints
 
-Datasets and model checkpoints are hosted on the Hugging Face Hub:
-
-https://huggingface.co/collections/MMR-Lab/sheetsage-a2s
+Datasets and model checkpoints are hosted on the Hugging Face Hub: https://huggingface.co/collections/MMR-Lab/sheetsage-a2s. The model checkpoint is publicly available for inference. To train our model from scratch and/or conduct other customized experiments, you need to fill in a brief application form at Hugging Face Hub in order to access the datasets. 
 
 
 > **Note:** if `huggingface.co` is unreachable, set the mirror endpoint before downloading:
@@ -48,8 +46,8 @@ https://huggingface.co/collections/MMR-Lab/sheetsage-a2s
 
 SheetSage-A2S is published in two forms. They contain the same songs and the same
 train/val/test splits. 
-https://huggingface.co/datasets/MMR-Lab/Sheetsage-A2S contains the kern scores along with the youtube links and timestamps.
-https://huggingface.co/datasets/MMR-Lab/Sheetsage-A2S-MuQ contains the dataset with Muq Preprocessed features as well as kern scores.
+https://huggingface.co/datasets/MMR-Lab/Sheetsage-A2S contains the kern scores along with the YouTube links and timestamps.
+https://huggingface.co/datasets/MMR-Lab/Sheetsage-A2S-MuQ contains the dataset with MuQ preprocessed features as well as kern scores.
 
 ### Getting the data
 
