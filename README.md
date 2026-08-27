@@ -67,24 +67,31 @@ hf download MMR-Lab/Sheetsage-A2S-MuQ \
 
 ### Model checkpoints
 
-We release two model checkpoints:
+Both checkpoints are hosted in the
+[SheetSage-A2S model repository](https://huggingface.co/MMR-Lab/Sheetsage-A2S-model):
 
-- [**SheetSage-A2S model**](https://huggingface.co/MMR-Lab/Sheetsage-A2S-model): our best-performing
-model that was trained and evaluated on SheetSage-A2S.
-- [**Quartets model**](https://huggingface.co/MMR-Lab/quartets-a2s-model): our best-performing model
-that was trained and evaluated on Quartets.
+- **SheetSage-A2S checkpoint** (`sheetsage_a2s.ckpt`): our best-performing model that was trained and evaluated
+on SheetSage-A2S.
+- **Quartets checkpoint** (`quartets_a2s.ckpt`): our best-performing model that was trained and evaluated on the
+Quartets dataset.
 
-`--checkpoint_path` accepts either a local checkpoint path or a Hugging Face model repository ID. Hub checkpoints are downloaded automatically into the local Hugging Face cache.
+`--checkpoint_path` accepts either a local checkpoint file or a Hugging Face checkpoint path
+in the form `org/repository/filename.ckpt`. Hub checkpoints are downloaded automatically into
+the local Hugging Face cache.
 
 ```bash
 # Local checkpoint
 python run_metrics.py --checkpoint_path /path/to/checkpoint.ckpt ...
 
 # SheetSage-A2S checkpoint
-python run_metrics.py --checkpoint_path MMR-Lab/Sheetsage-A2S-model ...
+python run_metrics.py \
+  --checkpoint_path MMR-Lab/Sheetsage-A2S-model/sheetsage_a2s.ckpt \
+  ...
 
 # Quartets checkpoint
-python run_metrics.py --checkpoint_path MMR-Lab/quartets-a2s-model ...
+python run_metrics.py \
+  --checkpoint_path MMR-Lab/Sheetsage-A2S-model/quartets_a2s.ckpt \
+  ...
 ```
 
 ## Usage
@@ -149,7 +156,7 @@ the original quartets paper together with word-level tokenisation):
 
 ```bash
 python train.py \
-    --ds_location /path/to/quartets \
+    --ds_location /path/to/preprocessed_muq_quartets \
     --encoder preprocessed_muq \
     --tokeniser original \
     --batch_size 8 \
@@ -175,7 +182,7 @@ accept a local path or a Hub id.
 ```bash
 # Lead sheets (SheetSage-A2S)
 python run_metrics.py \
-    --checkpoint_path MMR-Lab/Sheetsage-A2S-model \
+    --checkpoint_path MMR-Lab/Sheetsage-A2S-model/sheetsage_a2s.ckpt \
     --ds_location MMR-Lab/Sheetsage-A2S-MuQ \
     --encoder preprocessed_muq \
     --tokeniser word \
@@ -183,8 +190,8 @@ python run_metrics.py \
 
 # String quartets
 python run_metrics.py \
-    --checkpoint_path /path/to/checkpoint.ckpt \
-    --ds_location /path/to/quartets \
+    --checkpoint_path MMR-Lab/Sheetsage-A2S-model/quartets_a2s.ckpt \
+    --ds_location /path/to/preprocessed_muq_quartets \
     --encoder preprocessed_muq \
     --tokeniser original \
     --dataset_type quartets
@@ -197,7 +204,7 @@ Run inference sample-by-sample, printing ground-truth and predicted tokens toget
 
 ```bash
 python sample.py \
-    --checkpoint_path MMR-Lab/Sheetsage-A2S-model \
+    --checkpoint_path MMR-Lab/Sheetsage-A2S-model/sheetsage_a2s.ckpt \
     --ds_location MMR-Lab/Sheetsage-A2S-MuQ \
     --tokeniser word \
     --number 5
