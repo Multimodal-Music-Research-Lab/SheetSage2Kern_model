@@ -33,7 +33,7 @@ For more details, please refer to our [paper](https://arxiv.org/abs/2608.06165).
 
 ## Datasets & Checkpoints
 
-Datasets and model checkpoints are hosted on the Hugging Face Hub: https://huggingface.co/collections/MMR-Lab/sheetsage-a2s. The model checkpoints are publicly available for inference. To train our model from scratch and/or conduct other customized experiments, you need to fill in a brief application form at Hugging Face Hub in order to access the datasets. 
+Datasets and model checkpoints are hosted on the Hugging Face Hub: https://huggingface.co/collections/MMR-Lab/sheetsage-a2s. The model checkpoints are publicly available for inference. To train our model from scratch and/or conduct other customized experiments, you need to fill in a brief application form at Hugging Face Hub in order to access the datasets. NOTE: applications with no real names or a curt description of use may not be approved. 
 
 
 > **Note:** if `huggingface.co` is unreachable, set the mirror endpoint before downloading:
