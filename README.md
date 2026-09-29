@@ -1,3 +1,32 @@
+# MIREX 2026 Audio-to-Score submission
+
+This branch contains our submission to the MIREX 2026 Audio-to-Score Transcription task. It uses the model trained on Quartets with beam search of width 4.
+
+## Running the submission
+
+Requires Docker with NVIDIA GPU support. Run from this branch's repository root:
+
+```bash
+bash run.sh ./audio ./predictions
+```
+
+Pass the path to the input audio directory as the first argument and the path to the output directory as the second. The script builds the Docker image locally and runs inference, handling the directory mounts automatically. No Docker Hub account is required.
+
+The pipeline handles audio preprocessing and writes one `.krn` file per recording, preserving filenames and subfolder structure.
+
+The submission uses the Quartets checkpoint (`quartets_a2s.ckpt`) and MuQ weights both of which are already in the docker image. The Quartets checkpoint is also available from our [Hugging Face model repository](https://huggingface.co/MMR-Lab/Sheetsage-A2S-model).
+
+## Resources
+
+- **Inference:** Approximately 5 seconds per recording on an NVIDIA Tesla V100-SXM2 (16 GB), giving an estimated total runtime of 10.6 hours for the 7,611 recordings in the Quartets test set.
+- **Parameters:** approximately 311.9 M total parameters, including approximately 11.9M trainable parameters and approximately 300 M frozen MuQ parameters.
+- **Training data:** 24,351 original Quartets training examples, from these we create six additional augmented variants, giving a 7x expansion.
+- **Training compute:** Approximately 96 GPU-hours on NVIDIA Tesla V100-SXM2 (16 GB).
+
+The sections below document the original paper and training workflow; they are not required to run the MIREX submission.
+
+---
+
 # Sheetsage-A2S
 
 <div>
