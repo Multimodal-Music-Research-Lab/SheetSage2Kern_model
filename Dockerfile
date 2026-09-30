@@ -38,7 +38,7 @@ ENV HF_HOME=/opt/huggingface
 RUN python -c "from huggingface_hub import hf_hub_download; hf_hub_download(repo_id='MMR-Lab/Sheetsage-A2S-model', filename='quartets_a2s.ckpt', local_dir='/opt/checkpoints')"
 
 # Download MuQ into the cache used by MuQ.from_pretrained().
-RUN python -c "from huggingface_hub import snapshot_download; snapshot_download(repo_id='OpenMuQ/MuQ-large-msd-iter')"
+RUN HF_HUB_DISABLE_XET=1 python -c "from huggingface_hub import snapshot_download; snapshot_download(repo_id='OpenMuQ/MuQ-large-msd-iter')"
 
 COPY . .
 
