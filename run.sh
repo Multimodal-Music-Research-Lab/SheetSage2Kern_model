@@ -12,6 +12,9 @@ output_dir=$(cd "$2" && pwd)
 repo_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 
 docker build -t mirex_a2s "$repo_dir"
+docker build \
+  --build-arg HF_ENDPOINT="${HF_ENDPOINT:-https://huggingface.co}" \
+  -t mirex_a2s "$repo_dir"
 
 docker run --rm --gpus all \
   -v "$input_dir:/input:ro" \

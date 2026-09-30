@@ -29,7 +29,6 @@ COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy the project source
-COPY . .
 ARG HF_ENDPOINT=https://huggingface.co
 ENV HF_ENDPOINT=${HF_ENDPOINT}
 # Store the Hugging Face cache inside the image.
@@ -40,3 +39,7 @@ RUN python -c "from huggingface_hub import hf_hub_download; hf_hub_download(repo
 
 # Download MuQ into the cache used by MuQ.from_pretrained().
 RUN python -c "from huggingface_hub import snapshot_download; snapshot_download(repo_id='OpenMuQ/MuQ-large-msd-iter')"
+
+COPY . .
+
+ENTRYPOINT ["python", "/workspace/mirex_beam.py", "--checkpoint_path", "/opt/checkpoints/quartets_a2s.ckpt"]

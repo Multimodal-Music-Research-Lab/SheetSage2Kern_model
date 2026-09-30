@@ -9,6 +9,11 @@ Requires Docker with NVIDIA GPU support. Run from this branch's repository root:
 ```bash
 bash run.sh ./audio ./predictions
 ```
+If `huggingface.co` is unreachable, use the alternate endpoint when building and running:
+
+```bash
+HF_ENDPOINT=https://hf-mirror.com bash run.sh ./audio ./predictions
+```
 
 Pass the path to the input audio directory as the first argument and the path to the output directory as the second. The script builds the Docker image locally and runs inference, handling the directory mounts automatically. No Docker Hub account is required.
 
