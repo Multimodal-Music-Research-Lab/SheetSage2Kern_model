@@ -257,7 +257,7 @@ The code in this repository is released under the MIT license as found in the [L
 ```
 @article{cummins2026audio,
   title={Audio-to-Score Transcription using Pre-trained Features, Data Augmentation, and the New SheetSage-A2S Dataset},
-  author={Cummins, Eoin and Huang, Zhongyi and D'Hooge, Alexandre and Mo, Zhuoro and Ju, Yaolong},
+  author={Cummins, Eoin and Huang, Zhongyi and D'Hooge, Alexandre and Mo, Zhuoru and Ju, Yaolong},
   journal={arXiv preprint arXiv:2608.06165},
   year={2026}
 }
